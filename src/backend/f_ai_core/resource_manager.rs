@@ -1,6 +1,6 @@
 use tokio::sync::Semaphore;
 use std::sync::Arc;
-use anyhow::Result;
+use crate::backend::common::{Result, AppError};
 use tracing::info;
 
 #[derive(Debug)]

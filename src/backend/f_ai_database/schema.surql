@@ -34,7 +34,7 @@ DEFINE FIELD metadata ON images TYPE object {
         property_features: object {
             bedrooms: number,
             bathrooms: number,
-            square_feet: number,
+            square_meter: number,
             amenities: array
         }
     }

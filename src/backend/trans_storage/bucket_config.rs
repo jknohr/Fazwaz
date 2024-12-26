@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use crate::backend::common::error::{Result, StorageError};
+use crate::backend::trans_storage::storage_error::StorageError;
+use crate::backend::common::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BucketConfig {

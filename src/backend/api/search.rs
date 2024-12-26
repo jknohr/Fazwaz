@@ -23,6 +23,7 @@ pub async fn search_images(
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn search_by_embedding(
     State(state): State<Arc<AppState>>,
     Json(embedding): Json<Vec<f32>>,
@@ -32,12 +33,4 @@ pub async fn search_by_embedding(
         .await?;
     
     Ok(Json(results))
-} 
-
-#[axum::debug_handler]
-pub async fn search_by_embedding(
-    State(state): State<Arc<AppState>>,
-    Json(embedding): Json<Vec<f32>>,
-) -> Result<Json<Vec<ImageSearchResponse>>> {
-    // ...
 } 

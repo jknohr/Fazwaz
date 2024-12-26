@@ -4,21 +4,21 @@ use futures::future;
 use tracing::{info, warn, error, instrument};
 use uuid7;
 use chrono::Utc;
-use surrealdb::{Surreal, engine::remote::ws::Client};
-use super::error::{Error, Result};
+use surrealdb::{Surreal, engine::remote::ws::Ws};
+use crate::backend::common::{Result, AppError};
 
 use super::listing_model::{Listing, ListingStatus, ListingId};
 use crate::backend::trans_storage::b2_storage::B2Storage;
 
 #[derive(Clone)]
 pub struct ListingService {
-    db: Arc<Surreal<Client>>,
+    db: Arc<Surreal<Ws>>,
     storage: Arc<B2Storage>,
     cache: Arc<RwLock<HashMap<String, (Listing, Instant)>>>,
 }
 
 impl ListingService {
-    pub fn new(db: Arc<Surreal<Client>>, storage: Arc<B2Storage>) -> Self {
+    pub fn new(db: Arc<Surreal<Ws>>, storage: Arc<B2Storage>) -> Self {
         Self { 
             db,
             storage,
@@ -32,7 +32,7 @@ impl ListingService {
         
         if listing.title.is_empty() {
             warn!("Attempted to create listing with empty title");
-            return Err(Error::Validation("Title cannot be empty".to_string()));
+            return Err(AppError::Validation("Title cannot be empty".to_string()));
         }
 
         listing.id = uuid7::uuid7().to_string();
@@ -44,7 +44,7 @@ impl ListingService {
             return Err(e);
         }
 
-        match self.db.create("listing").content(&listing).await {
+        match self.db.create::<Listing>("listing").content(&listing).await {
             Ok(_) => {
                 info!(listing_id = %listing.listing_id.as_str(), "Listing created successfully");
                 Ok(listing)
@@ -64,7 +64,7 @@ impl ListingService {
             }
         }
 
-        let result = self.db.select(("listing", id)).await?;
+        let result: Option<Listing> = self.db.select(("listing", id)).await?;
         
         if let Some(listing) = &result {
             self.cache.write().await.insert(
@@ -150,15 +150,15 @@ impl ListingService {
     fn validate_listing(&self, listing: &Listing) -> Result<()> {
         if listing.title.is_empty() {
             warn!(listing_id = %listing.listing_id.as_str(), "Empty title");
-            return Err(Error::Validation("Title cannot be empty".to_string()));
+            return Err(AppError::Validation("Title cannot be empty".to_string()));
         }
         if listing.price < 0.0 {
             warn!(listing_id = %listing.listing_id.as_str(), price = listing.price, "Negative price");
-            return Err(Error::Validation("Price cannot be negative".to_string()));
+            return Err(AppError::Validation("Price cannot be negative".to_string()));
         }
         if listing.listing_id.as_str().is_empty() {
             warn!(listing_id = %listing.listing_id.as_str(), "Empty listing ID");
-            return Err(Error::Validation("Listing ID cannot be empty".to_string()));
+            return Err(AppError::Validation("Listing ID cannot be empty".to_string()));
         }
         Ok(())
     }

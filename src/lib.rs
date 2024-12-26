@@ -40,6 +40,7 @@ pub use backend::common;
 pub use backend::f_ai_core;
 pub use backend::f_ai_database;
 pub use backend::key_logic_auth;
+pub use backend::image_processor;
 
 // Constants
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

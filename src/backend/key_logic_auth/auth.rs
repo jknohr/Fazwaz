@@ -5,10 +5,7 @@ use axum::{
     response::Response,
 };
 use std::sync::Arc;
-use crate::{
-    state::AppState,
-    error::{Result, AppError},
-};
+use crate::backend::common::{Result, AppError};
 
 pub async fn require_auth<B>(
     State(state): State<Arc<AppState>>,

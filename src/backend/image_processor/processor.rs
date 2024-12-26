@@ -3,6 +3,7 @@ use image::{DynamicImage, ImageFormat};
 use webp::Encoder;
 use tracing::{info, warn, instrument};
 use crate::backend::common::types::id_types::{ListingId, ImageId};
+use crate::backend::common::{Result, AppError, ImageError};
 
 use crate::{
     error::Result,

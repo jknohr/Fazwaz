@@ -3,9 +3,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use std::sync::Arc;
-use crate::{
-    state::AppState,
-    error::Result,
+use crate::backend::{
+    f_ai_core::state::AppState,
+    common::error::Result,
 };
 use tracing::instrument;
 

@@ -1,86 +1,71 @@
-use std::sync::Arc;
-use include_dir::{include_dir, Dir};
-use once_cell::sync::OnceCell;
-use serde::{Serialize, Deserialize};
-use tracing::{info, warn};
+use anyhow::Result;
+use serde_json::Value;
+use tracing::debug;
 
-use crate::backend::common::error::Result;
-
-static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/prompts");
-static PROMPTS: OnceCell<Arc<PromptService>> = OnceCell::new();
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptTemplate {
-    pub name: String,
-    pub version: String,
-    pub content: String,
-    pub parameters: Vec<String>,
-}
+use super::prompts::{Role, ResponseFormat, load_system_prompt, load_response_format};
 
 pub struct PromptService {
-    templates: std::collections::HashMap<String, PromptTemplate>,
+    system_prompt: Role,
+    response_format: ResponseFormat,
 }
 
 impl PromptService {
-    pub fn init() -> Result<()> {
-        let mut service = Self {
-            templates: std::collections::HashMap::new(),
-        };
-
-        // Load all prompt templates
-        for entry in PROMPTS_DIR.find("**/*.md").unwrap() {
-            if let Some(file) = entry.as_file() {
-                let path = file.path().to_string_lossy();
-                let content = String::from_utf8_lossy(file.contents());
-                
-                let template = PromptTemplate {
-                    name: path.to_string(),
-                    version: "1.0".to_string(),
-                    content: content.to_string(),
-                    parameters: extract_parameters(&content),
-                };
-
-                service.templates.insert(path.to_string(), template);
-                info!("Loaded prompt template: {}", path);
-            }
+    pub fn new() -> Self {
+        Self {
+            system_prompt: load_system_prompt().expect("Failed to load system prompt"),
+            response_format: load_response_format().expect("Failed to load response format"),
         }
-
-        PROMPTS.set(Arc::new(service))?;
-        Ok(())
     }
 
-    pub fn get() -> Arc<Self> {
-        PROMPTS.get()
-            .expect("Prompts not initialized")
-            .clone()
+    pub fn get_system_prompt(&self) -> &str {
+        &self.system_prompt.content
     }
 
-    pub fn get_template(&self, name: &str) -> Option<&PromptTemplate> {
-        self.templates.get(name)
+    pub fn get_response_format(&self) -> &Value {
+        &self.response_format.schema
     }
 
-    pub fn render_template(&self, name: &str, params: &serde_json::Value) -> Result<String> {
-        let template = self.get_template(name)?;
-        let mut content = template.content.clone();
+    pub fn format_image_prompt(&self, image_base64: &str) -> Value {
+        debug!("Formatting image analysis prompt");
         
-        for param in &template.parameters {
-            if let Some(value) = params.get(param) {
-                content = content.replace(&format!("{{{{{}}}}}", param), 
-                    value.as_str().unwrap_or_default());
-            }
-        }
-
-        Ok(content)
+        serde_json::json!({
+            "model": "gpt-4-vision-preview",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": self.get_system_prompt()
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Please analyze this property image."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": format!("data:image/jpeg;base64,{}", image_base64),
+                                "detail": "high"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": 4096,
+            "response_format": self.get_response_format()
+        })
     }
 }
 
-fn extract_parameters(content: &str) -> Vec<String> {
-    let mut params = Vec::new();
-    let re = regex::Regex::new(r"\{\{(\w+)\}\}").unwrap();
-    
-    for cap in re.captures_iter(content) {
-        params.push(cap[1].to_string());
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prompt_service_initialization() {
+        let service = PromptService::new();
+        assert!(!service.get_system_prompt().is_empty());
+        assert!(service.get_response_format().is_object());
     }
-    
-    params
 } 

@@ -1,6 +1,5 @@
-pub mod error;
 pub mod types;
 pub mod validation;
-pub mod config;
+pub mod error;
 
-pub use error::{Error, Result, IdError};
+pub use crate::backend::common::error::{AppError, Result, ImageError};

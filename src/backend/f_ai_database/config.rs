@@ -1,5 +1,9 @@
 use serde::Deserialize;
 use anyhow::Result;
+use tracing_subscriber;
+use tracing_subscriber::fmt::time::UtcTime;
+
+
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
@@ -40,7 +44,7 @@ pub fn init_logging(config: &LoggingConfig) -> Result<()> {
 
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(env_filter)
-        .with_timer(tracing_subscriber::fmt::time::UtcTime::rfc_3339())
+        .with_timer(UtcTime::rfc_3339())
         .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
         .with_target(true)
         .with_thread_ids(true)

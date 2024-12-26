@@ -5,15 +5,14 @@ use axum::{
     Router,
     routing::{get, post, delete, patch},
 };
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{info, instrument};
-use uuid7::Uuid7;
-use crate::{
-    state::AppState,
-    error::Result,
+use uuid7;
+use serde_json::json;
+use crate::backend::{
+    common::error::Result,
+    f_ai_core::state::AppState,
     image_processor::image_model::*,
-    key_logic_auth::{auth::RequireAuth, rate_limit::RateLimit},
 };
 
 pub fn image_routes() -> Router {
@@ -27,11 +26,10 @@ pub fn image_routes() -> Router {
         .route("/optimize/:listing_id/:image_id", post(optimize_image_with_options))
         .route("/metadata/:listing_id/:image_id", patch(update_image_metadata))
         .route("/:listing_id/:image_id", delete(delete_image_record))
-        .layer(RequireAuth::new())
-        .layer(RateLimit::new("image_upload", 10, 60))
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn process_image_upload(
     State(state): State<Arc<AppState>>,
     Path(listing_id): Path<String>,
@@ -47,21 +45,11 @@ pub async fn process_image_upload(
         .process_upload(validated_file.data, &validated_file.filename, &listing_id)
         .await?;
 
-    state.monitoring.record_audit(
-        "upload_image",
-        "system",
-        "image",
-        &image.id,
-        Some(json!({
-            "trace_id": trace_id,
-            "listing_id": listing_id,
-        })),
-    ).await?;
-
     Ok(Json(image))
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn search_images_by_criteria(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ImageSearchQuery>,
@@ -71,6 +59,7 @@ pub async fn search_images_by_criteria(
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn process_batch_upload(
     State(state): State<Arc<AppState>>,
     Path(listing_id): Path<String>,
@@ -82,6 +71,7 @@ pub async fn process_batch_upload(
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn get_batch_processing_status(
     State(state): State<Arc<AppState>>,
     Path(batch_id): Path<String>,
@@ -91,6 +81,7 @@ pub async fn get_batch_processing_status(
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn cancel_batch_processing(
     State(state): State<Arc<AppState>>,
     Path(batch_id): Path<String>,
@@ -100,6 +91,7 @@ pub async fn cancel_batch_processing(
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn transform_image_with_options(
     State(state): State<Arc<AppState>>,
     Path((listing_id, image_id)): Path<(String, String)>,
@@ -112,6 +104,7 @@ pub async fn transform_image_with_options(
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn optimize_image_with_options(
     State(state): State<Arc<AppState>>,
     Path((listing_id, image_id)): Path<(String, String)>,
@@ -124,6 +117,7 @@ pub async fn optimize_image_with_options(
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn update_image_metadata(
     State(state): State<Arc<AppState>>,
     Path((listing_id, image_id)): Path<(String, String)>,
@@ -136,6 +130,7 @@ pub async fn update_image_metadata(
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn delete_image_record(
     State(state): State<Arc<AppState>>,
     Path((listing_id, image_id)): Path<(String, String)>,

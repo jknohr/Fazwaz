@@ -32,7 +32,7 @@ impl EmbeddingService {
         
         // Call OpenAI Vision API with our real estate analysis prompt
         let request = CreateImageAnalysisRequest {
-            model: "gpt-4-vision-preview",
+            model: "gpt-1o-mini",
             messages: vec![
                 ChatMessage {
                     role: "user",

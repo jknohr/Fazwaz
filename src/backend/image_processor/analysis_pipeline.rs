@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tracing::{info, warn};
+use crate::backend::common::{Result, AppError, ImageError};
 use crate::{
-    error::Result,
     llm_caller::batch_processor::OpenAIProcessor,
     trans_storage::file_manager::FileManager,
 };

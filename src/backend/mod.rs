@@ -6,3 +6,4 @@ pub mod key_logic_auth;
 pub mod monitoring;
 pub mod trans_storage;
 pub mod llm_caller; 
+pub mod image_processor;

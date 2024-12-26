@@ -4,10 +4,10 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::{
-    state::AppState,
-    error::Result,
-    key_logic_auth::auth_types::*,
+use crate::backend::{
+    f_ai_core::state::AppState,
+    common::error::Result,
+    common::types::auth_types::*,
 };
 use tracing::instrument;
 

@@ -1,7 +1,12 @@
 use serde::{Deserialize, Serialize};
-use uuid7;
 use chrono::{DateTime, Utc};
-use crate::common::types::id_types::{ImageId, ListingId, BatchId, JobId};
+use crate::backend::common::types::id_types::ObjectId;
+use crate::backend::common::{Result, AppError, ImageError};
+
+pub type BatchId = ObjectId;
+pub type ImageId = ObjectId;
+pub type ListingId = ObjectId;
+pub type JobId = ObjectId;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ImageUploadOptions {
@@ -81,7 +86,7 @@ pub struct TextFeatures {
 pub struct PropertyFeatures {
     pub bedrooms: Option<f32>,
     pub bathrooms: Option<f32>,
-    pub square_feet: Option<f32>,
+    pub square_meter: Option<f32>,
     pub amenities: Vec<String>,
 }
 

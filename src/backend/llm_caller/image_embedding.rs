@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use async_openai::{
     Client,
     types::{CreateEmbeddingRequest, Embedding},
@@ -31,6 +32,15 @@ pub struct EmbeddingMetadata {
 pub struct DetectedObject {
     pub label: String,
     pub confidence: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct RealEstateFeatures {
+    pub lighting: f32,
+    pub quality: f32,
+    pub staging: f32,
+    pub cleanliness: f32,
+    pub maintenance: f32,
 }
 
 pub struct EmbeddingService {

@@ -1,4 +1,4 @@
-use prometheus::{IntCounter, Histogram, Registry, opts, histogram_opts};
+use prometheus::{Registry, IntCounter, Histogram, opts, histogram_opts};
 
 pub struct StorageMetrics {
     pub storage_operation_duration: Histogram,
@@ -41,33 +41,6 @@ impl StorageMetrics {
     }
 }
 
-pub struct ImageMetrics {
-    pub embedding_generation_duration: Histogram,
-    pub images_analyzed_total: IntCounter,
-}
-
-impl ImageMetrics {
-    pub fn new() -> Result<Self, prometheus::Error> {
-        let registry = Registry::new();
-
-        let embedding_generation_duration = Histogram::with_opts(
-            histogram_opts!("embedding_generation_duration_seconds", "Duration of embedding generation")
-        )?;
-
-        let images_analyzed_total = IntCounter::with_opts(
-            opts!("images_analyzed_total", "Total number of images analyzed")
-        )?;
-
-        registry.register(Box::new(embedding_generation_duration.clone()))?;
-        registry.register(Box::new(images_analyzed_total.clone()))?;
-
-        Ok(Self {
-            embedding_generation_duration,
-            images_analyzed_total,
-        })
-    }
-}
-
 pub struct LLMMetrics {
     pub embedding_generation_duration: Histogram,
     pub images_analyzed_total: IntCounter,
@@ -83,6 +56,22 @@ impl LLMMetrics {
     pub fn new() -> Result<Self, prometheus::Error> {
         let registry = Registry::new();
 
+        let embedding_generation_duration = Histogram::with_opts(
+            histogram_opts!("embedding_generation_duration_seconds", "Duration of embedding generation")
+        )?;
+        let images_analyzed_total = IntCounter::with_opts(
+            opts!("images_analyzed_total", "Total number of images analyzed")
+        )?;
+        let openai_request_duration = Histogram::with_opts(
+            histogram_opts!("openai_request_duration_seconds", "Duration of OpenAI requests")
+        )?;
+        let successful_openai_requests = IntCounter::with_opts(
+            opts!("successful_openai_requests", "Number of successful OpenAI requests")
+        )?;
+        let successful_embeddings = IntCounter::with_opts(
+            opts!("successful_embeddings", "Number of successful embeddings generated")
+        )?;
+
         let batch_processing_duration = Histogram::with_opts(
             histogram_opts!("batch_processing_duration_seconds", "Duration of batch processing")
         )?;
@@ -95,13 +84,24 @@ impl LLMMetrics {
             opts!("batch_jobs_failed", "Number of failed batch jobs")
         )?;
 
-        // Register metrics...
+        registry.register(Box::new(embedding_generation_duration.clone()))?;
+        registry.register(Box::new(images_analyzed_total.clone()))?;
+        registry.register(Box::new(openai_request_duration.clone()))?;
+        registry.register(Box::new(successful_openai_requests.clone()))?;
+        registry.register(Box::new(successful_embeddings.clone()))?;
+        registry.register(Box::new(batch_processing_duration.clone()))?;
+        registry.register(Box::new(batch_jobs_total.clone()))?;
+        registry.register(Box::new(batch_jobs_failed.clone()))?;
 
         Ok(Self {
+            embedding_generation_duration,
+            images_analyzed_total,
+            openai_request_duration,
+            successful_openai_requests,
+            successful_embeddings,
             batch_processing_duration,
-            batch_jobs_total, 
+            batch_jobs_total,
             batch_jobs_failed,
-            // ... other fields
         })
     }
 } 

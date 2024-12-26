@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = { version = "0.7", features = ["multipart"] }
+prometheus = "0.13.4"
+axum = { version = "0.7", features = ["macros", "multipart"] }
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -25,7 +26,7 @@ image = { version = "0.24", features = ["webp"] }
 webp = "0.2"
 lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls"] }
 resvg = "0.35.0"
-mockall = "0.11.3"
+
 kamadak-exif = "0.5"
 mozjpeg = "0.10.12"
 rayon = "1.7"

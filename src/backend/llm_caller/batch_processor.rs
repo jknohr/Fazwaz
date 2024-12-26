@@ -1,5 +1,13 @@
 use std::sync::Arc;
-use async_openai::{Client, types::{CreateBatchImageAnalysisRequest, ChatCompletionRequestMessage}};
+use async_openai::{
+    Client,
+    types::{
+        CreateChatCompletionRequest,
+        Role,
+        MessageContent
+    },
+    config::OpenAIConfig
+};
 use tokio::sync::Semaphore;
 use futures::future::join_all;
 use tracing::{info, warn, instrument};
@@ -8,7 +16,6 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::backend::{
     common::{
         error::{Result, AppError},
-        config::OpenAIConfig,
         types::image_types::{BatchId, ImageMetadata, BatchProcessingStatus},
     },
     monitoring::metrics::LLMMetrics,
@@ -23,7 +30,7 @@ pub struct BatchImageProcessor {
 impl BatchImageProcessor {
     pub fn new(config: OpenAIConfig, metrics: Arc<LLMMetrics>) -> Self {
         Self {
-            client: Client::new().with_api_key(&config.api_key),
+            client: Client::new_with_config(config),
             metrics,
             semaphore: Arc::new(Semaphore::new(5)), // Limit concurrent batches
         }
@@ -48,30 +55,26 @@ impl BatchImageProcessor {
         // Prepare batch request
         let requests = images.iter().map(|img| {
             let base64_image = BASE64.encode(&img.data);
-            CreateBatchImageAnalysisRequest {
-                model: "gpt-4-vision-preview",
-                messages: vec![ChatCompletionRequestMessage {
-                    role: "user".into(),
-                    content: vec![
-                        MessageContent::Text { 
-                            text: include_str!("../assets/analyse_image.md").to_string()
-                        },
-                        MessageContent::ImageUrl {
+            CreateChatCompletionRequest::new(
+                "gpt-4-vision-preview".to_string(),
+                vec![ChatCompletionRequestMessageArgs::default()
+                    .role(Role::User)
+                    .content(vec![
+                        MessageContent::Text(include_str!("../assets/analyse_image.md").to_string()),
+                        MessageContent::ImageUrl { 
                             url: format!("data:image/webp;base64,{}", base64_image),
-                            detail: Some("low".into()),
+                            detail: Some("low".to_string())
                         }
-                    ],
-                }],
-                max_tokens: Some(1000),
-            }
+                    ])
+                    .build()?
+                ]
+            )
+            .max_tokens(1000)
         }).collect::<Vec<_>>();
 
         // Process in batches of 10
         for chunk in requests.chunks(10) {
-            match self.client.batch_chat()
-                .create(chunk.to_vec())
-                .await 
-            {
+            match join_all(chunk.iter().map(|req| self.client.chat().create(req.clone()))).await {
                 Ok(responses) => {
                     completed += responses.len();
                     // Process responses...

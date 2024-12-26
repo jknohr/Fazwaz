@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid7;
 use chrono::{DateTime, Utc};
 use tracing::{info, warn, instrument};
-use super::error::{Error, Result};
+use crate::backend::common::{Result, AppError};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]
 pub struct ListingId(String);
@@ -38,7 +38,7 @@ pub struct Listing {
     pub price: f64,
     pub bedrooms: u32,
     pub bathrooms: u32,
-    pub square_feet: u32,
+    pub square_meter: u32,
     pub amenities: Vec<Amenity>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -64,7 +64,7 @@ impl Listing {
         Ok(())
     }
 
-    fn validate_square_feet(sqft: u32) -> Result<()> {
+    fn validate_square_meter(sqft: u32) -> Result<()> {
         if sqft == 0 || sqft > 100_000 {
             return Err(Error::Validation("Invalid square footage".to_string()));
         }
@@ -138,7 +138,7 @@ pub struct ListingBuilder {
     price: Option<f64>,
     bedrooms: Option<u32>,
     bathrooms: Option<u32>,
-    square_feet: Option<u32>,
+    square_meter: Option<u32>,
     amenities: Vec<Amenity>,
     status: Option<ListingStatus>,
 }
@@ -174,8 +174,8 @@ impl ListingBuilder {
         self
     }
 
-    pub fn square_feet(mut self, square_feet: u32) -> Self {
-        self.square_feet = Some(square_feet);
+    pub fn square_meter(mut self, square_meter: u32) -> Self {
+        self.square_meter = Some(square_meter);
         self
     }
 
@@ -210,8 +210,8 @@ impl ListingBuilder {
         let bathrooms = self.bathrooms.unwrap_or(0);
         Listing::validate_rooms(bathrooms)?;
 
-        let square_feet = self.square_feet.unwrap_or(0);
-        Listing::validate_square_feet(square_feet)?;
+        let square_meter = self.square_meter.unwrap_or(0);
+        Listing::validate_square_meter(square_meter)?;
         
         Ok(Listing {
             id: uuid7::uuid7().to_string(),
@@ -221,7 +221,7 @@ impl ListingBuilder {
             price,
             bedrooms,
             bathrooms,
-            square_feet,
+            square_meter,
             amenities: self.amenities,
             created_at: Utc::now(),
             updated_at: Utc::now(),

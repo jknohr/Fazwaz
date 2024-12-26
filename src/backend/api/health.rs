@@ -6,9 +6,9 @@ use axum::{
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::{info, warn, instrument};
-use crate::{
-    state::AppState,
-    error::Result,
+use crate::backend::{
+    common::error::Result,
+    f_ai_core::state::AppState,
 };
 
 #[derive(Debug, Serialize)]
@@ -46,6 +46,7 @@ pub struct HealthResponse {
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn check_health(
     State(state): State<Arc<AppState>>,
 ) -> Result<(StatusCode, Json<HealthResponse>)> {
@@ -57,8 +58,6 @@ pub async fn check_health(
     // Get health checks from components
     let checks = vec![
         state.db.check_health().await,
-        state.storage.check_health().await,
-        state.cache.check_health().await,
     ];
 
     for check in checks {
@@ -94,16 +93,16 @@ pub async fn check_health(
 }
 
 #[instrument(skip(state))]
+#[axum::debug_handler]
 pub async fn check_readiness(
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode> {
     let checks = vec![
         state.db.check_health().await,
-        state.storage.check_health().await,
     ];
 
     let all_ready = checks.iter()
-        .all(|c| matches!(c.status, ComponentStatus::Up));
+        .all(|check| matches!(check.status, ComponentStatus::Up));
 
     Ok(if all_ready {
         StatusCode::OK
@@ -117,26 +116,4 @@ pub async fn check_liveness(
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode> {
     Ok(StatusCode::OK)
-} 
-
-
-use axum::extract::State;
-use std::sync::Arc;
-use crate::backend::{
-    common::error::Result,
-    f_ai_core::state::AppState,
-};
-
-#[axum::debug_handler]
-pub async fn check_health(
-    State(state): State<Arc<AppState>>,
-) -> Result<(StatusCode, Json<HealthResponse>)> {
-    // ...
-}
-
-#[axum::debug_handler]
-pub async fn check_readiness(
-    State(state): State<Arc<AppState>>,
-) -> Result<StatusCode> {
-    // ...
 } 

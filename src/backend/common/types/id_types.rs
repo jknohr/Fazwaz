@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use uuid7;
 use std::fmt;
 use chrono::{DateTime, Utc};
-use crate::common::error::{Result, IdError};
-use crate::backend::common::types::listing_types::Listing;
+use crate::backend::common::{Result, AppError};
+use crate::backend::f_ai_database::listing_model::Listing;
+use surrealdb::sql::Id;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct ObjectId(String);
@@ -15,14 +16,14 @@ impl ObjectId {
 
     pub fn from_string(id: String) -> Result<Self> {
         let uuid = id.parse::<uuid7::Uuid>()
-            .map_err(|e| IdError::ParseError(e.to_string()))?;
+            .map_err(|e| AppError::ParseError(e.to_string()))?;
 
         // Validate timestamp is not in future
         let timestamp = uuid.timestamp_ms();
         let now = Utc::now().timestamp_millis() as u64;
         
         if timestamp > now {
-            return Err(IdError::InvalidTimestamp("Timestamp is in future".into()).into());
+            return Err(AppError::InvalidTimestamp("Timestamp is in future".into()).into());
         }
 
         Ok(Self(id))
@@ -34,10 +35,10 @@ impl ObjectId {
 
     pub fn timestamp(&self) -> Result<DateTime<Utc>> {
         let uuid = self.0.parse::<uuid7::Uuid>()
-            .map_err(|e| IdError::ParseError(e.to_string()))?;
+            .map_err(|e| AppError::ParseError(e.to_string()))?;
         
         let ts = chrono::DateTime::from_timestamp_millis(uuid.timestamp_ms() as i64)
-            .ok_or_else(|| IdError::InvalidTimestamp("Invalid timestamp value".into()))?;
+            .ok_or_else(|| AppError::InvalidTimestamp("Invalid timestamp value".into()))?;
             
         Ok(ts)
     }
@@ -85,14 +86,14 @@ mod tests {
         let invalid_uuid = "not-a-uuid";
         assert!(matches!(
             ObjectId::from_string(invalid_uuid.to_string()),
-            Err(Error::Id(IdError::ParseError(_)))
+            Err(AppError::ParseError(_))
         ));
 
         // Future timestamp
-        let future_uuid = "01900000-0000-7000-8000-000000000000"; // Far future timestamp
+        let future_uuid = "01900000-0000-7000-8000-000000000000";
         assert!(matches!(
             ObjectId::from_string(future_uuid.to_string()),
-            Err(Error::Id(IdError::InvalidTimestamp(_)))
+            Err(AppError::InvalidTimestamp(_))
         ));
     }
 
@@ -137,5 +138,17 @@ impl ImageContext {
             self.listing.district.to_lowercase(),
             self.listing.subdistrict.to_lowercase()
         )
+    }
+} 
+
+impl From<ObjectId> for Id {
+    fn from(id: ObjectId) -> Self {
+        Id::from(id.0)
+    }
+}
+
+impl From<&ObjectId> for Id {
+    fn from(id: &ObjectId) -> Self {
+        Id::from(id.0.as_str())
     }
 } 

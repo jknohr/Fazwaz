@@ -2,8 +2,8 @@ use std::sync::Arc;
 use tokio::time::{Duration, interval};
 use tracing::{info, warn};
 
+use crate::backend::common::{Result, AppError};
 use crate::{
-    error::Result,
     llm_caller::image_embedding::OpenAIEmbedding,
     trans_storage::file_manager::FileManager,
 };

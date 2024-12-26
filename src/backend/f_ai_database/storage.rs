@@ -1,12 +1,9 @@
-use thiserror::Error;
+use crate::backend::common::{Result, AppError, StorageError};
 
 #[derive(Debug, Error)]
 pub enum StorageError {
     #[error("Storage error: {0}")]
     Generic(String),
-    
-    #[error("Configuration error: {0}")]
-    Configuration(String),
     
     #[error("File not found: {0}")]
     NotFound(String),

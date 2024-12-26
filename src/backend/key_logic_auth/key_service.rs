@@ -1,10 +1,10 @@
-use uuid7::Uuid7;
+use uuid7::uuid7;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
 
+use crate::backend::common::{Result, AppError};
 use crate::{
-    error::Result,
     f_ai_database::Database,
     key_logic_auth::email_service::EmailService,
 };
@@ -37,7 +37,7 @@ impl KeyService {
 
     #[instrument(skip(self))]
     pub async fn generate_key(&self, email: &str, username: &str) -> Result<String> {
-        let key = Uuid7::new().to_string();
+        let key = uuid7().to_string();
         let now = Utc::now();
         
         let metadata = KeyMetadata {
@@ -65,7 +65,7 @@ impl KeyService {
         let metadata = self.db.get_key_metadata(key).await?;
         
         if metadata.expires_at < Utc::now() {
-            return Err(anyhow::anyhow!("API key has expired").into());
+            return Err(AppError::Validation("API key has expired".into()));
         }
         
         Ok(metadata)
@@ -74,6 +74,14 @@ impl KeyService {
     pub async fn revoke_key(&self, key: &str) -> Result<()> {
         self.db.delete_key(key).await?;
         info!("Revoked API key: {}", key);
+        Ok(())
+    }
+
+    pub async fn validate_key(&self, key: &str) -> Result<()> {
+        if key.is_empty() {
+            return Err(AppError::Validation("API key cannot be empty".into()));
+        }
+        // Rest of validation...
         Ok(())
     }
 } 

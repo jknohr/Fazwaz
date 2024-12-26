@@ -1,0 +1,23 @@
+{
+  "schema": {
+    "type": "object",
+    "properties": {
+      "analysis": {
+        "type": "object",
+        "properties": {
+          "scene_type": { "type": "string" },
+          "room_type": { "type": "string", "nullable": true },
+          "quality_score": { "type": "number", "minimum": 0, "maximum": 10 },
+          "features": { "type": "array", "items": { "type": "string" } },
+          "condition": {
+            "type": "object",
+            "properties": {
+              "overall": { "type": "number", "minimum": 0, "maximum": 10 },
+              "issues": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  }
+} 

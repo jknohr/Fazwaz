@@ -2,15 +2,14 @@ use axum::{
     extract::{State, Path, Json},
     http::StatusCode,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
-use crate::{
-    error::Result,
+use crate::backend::{
+    common::error::Result,
     common::types::listing_types::*,
-    state::AppState,
-    monitoring::audit::AuditLog,
+    f_ai_core::state::AppState,
 };
-use tracing::{info, instrument};
+use tracing::instrument;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateListingRequest {
@@ -20,7 +19,7 @@ pub struct CreateListingRequest {
     price: f64,
     bedrooms: u32,
     bathrooms: u32,
-    square_feet: u32,
+    square_meter: u32,
     amenities: Vec<String>,
 }
 
@@ -31,7 +30,7 @@ pub struct UpdateListingRequest {
     price: Option<f64>,
     bedrooms: Option<u32>,
     bathrooms: Option<u32>,
-    square_feet: Option<u32>,
+    square_meter: Option<u32>,
     amenities: Option<Vec<String>>,
 }
 
@@ -54,21 +53,12 @@ pub async fn create_listing(
         req.price,
         req.bedrooms,
         req.bathrooms,
-        req.square_feet,
+        req.square_meter,
         req.amenities,
     );
 
     let created = state.listing_service.create_listing(listing).await?;
     
-    // Record audit log
-    state.monitoring.record_audit(
-        "create_listing",
-        "system", // TODO: Get from auth context
-        "listing",
-        &created.listing_id.as_str(),
-        None,
-    ).await?;
-
     Ok((StatusCode::CREATED, Json(created)))
 }
 

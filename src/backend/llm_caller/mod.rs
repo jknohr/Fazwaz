@@ -1,12 +1,25 @@
-pub mod types;
-pub mod openai_client;
-pub mod prompt_service;
-pub mod image_embedding;
-pub mod batch_processor;
-pub mod embedding_service;
+// Sub-modules
+mod analysis_client;
+mod openai_client;
+mod prompt_service;
+mod embedding_service;
+mod batch;
+mod prompts;
 
-pub use types::*;
+// Re-exports
+pub use analysis_client::AnalysisClient;
 pub use openai_client::OpenAIClient;
 pub use prompt_service::PromptService;
 pub use embedding_service::EmbeddingService;
-pub use batch_processor::LLMBatchProcessor; 
+pub use batch::BatchProcessor;
+
+// Common imports for the module
+use anyhow::{Result, Context};
+use serde::{Serialize, Deserialize};
+use tokio;
+use tracing::{info, warn, error, debug};
+
+// Constants
+const DEFAULT_MODEL: &str = "gpt-1o-mini";
+const DEFAULT_TEMPERATURE: f32 = 0.7;
+const MAX_TOKENS: u32 = 4096; 

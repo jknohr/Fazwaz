@@ -1,40 +1,68 @@
-use std::result;
 use thiserror::Error;
+use lettre::error::Error as LettreError;
+use lettre::transport::smtp::Error as SmtpError;
+use handlebars::RenderError;
+use surrealdb::Error as SurrealError;
+use axum::extract::multipart::MultipartError;
 
-pub type Result<T> = result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, AppError>;
 
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("Database error: {0}")]
-    Database(#[from] surrealdb::Error),
-
-    #[error("Validation error: {0}")]
-    Validation(String),
-
+#[derive(Debug, Error)]
+pub enum AppError {
+    #[error("Image error: {0}")]
+    ImageError(#[from] ImageError),
     #[error("Internal error: {0}")]
     Internal(String),
-
-    #[error("ID error: {0}")]
-    Id(#[from] IdError),
-
-    #[error("External service error: {0}")]
-    ExternalService(String),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum IdError {
-    #[error("Invalid UUID7 format: {0}")]
-    InvalidFormat(String),
-    #[error("Invalid UUID7 version")]
-    InvalidVersion,
-    #[error("UUID7 parse error: {0}")]
+    #[error("IO error: {0}")]
+    IO(#[from] std::io::Error),
+    #[error("Storage error: {0}")]
+    Storage(#[from] StorageError),
+    #[error("Validation error: {0}")]
+    Validation(String),
+    #[error("Email error: {0}")]
+    Email(#[from] LettreError),
+    #[error("SMTP error: {0}")]
+    Smtp(#[from] SmtpError),
+    #[error("Template error: {0}")]
+    Template(#[from] RenderError),
+    #[error("Database error: {0}")]
+    Database(#[from] SurrealError),
+    #[error("Parse error: {0}")]
     ParseError(String),
     #[error("Invalid timestamp: {0}")]
     InvalidTimestamp(String),
 }
 
-impl From<StorageError> for Error {
-    fn from(err: StorageError) -> Self {
-        Error::ExternalService(err.to_string())
+#[derive(Debug, Error)]
+pub enum ImageError {
+    #[error("File too large: {size} bytes (max: {max} bytes)")]
+    FileTooLarge {
+        size: usize,
+        max: usize,
+    },
+    #[error("Invalid file type: found {found}, expected one of {expected:?}")]
+    InvalidFileType {
+        found: String,
+        expected: Vec<String>,
+    },
+}
+
+#[derive(Debug, Error)]
+pub enum StorageError {
+    #[error("Upload failed: {0}")]
+    UploadFailed(String),
+    #[error("Download failed: {0}")]
+    DownloadFailed(String),
+    #[error("File not found: {0}")]
+    FileNotFound(String),
+    #[error("Bucket operation failed: {0}")]
+    BucketOperation(String),
+    #[error("Configuration error: {0}")]
+    Configuration(String),
+}
+
+impl From<MultipartError> for AppError {
+    fn from(err: MultipartError) -> Self {
+        AppError::Internal(err.to_string())
     }
 } 

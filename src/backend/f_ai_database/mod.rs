@@ -1,10 +1,14 @@
-pub mod batch_model;
-pub mod config;
-pub mod image_model;
-pub mod image_service;
+mod database;
+pub use database::DatabaseManager;
+
 pub mod listing_model;
 pub mod listing_service;
+pub mod image_model;
+pub mod image_service;
+pub mod batch_model;
+pub mod config;
 pub mod error;
+pub mod storage;
 
 pub use {
     config::DatabaseConfig,
@@ -14,22 +18,25 @@ pub use {
     listing_service::ListingService,
 };
 
-use surrealdb::{Surreal, engine::remote::ws::Client, Response};
+use surrealdb::{Surreal, engine::remote::ws::Ws, Response};
 use std::sync::Arc;
-use anyhow::Result;
+use crate::backend::common::{Result, AppError};
 use tracing::info;
 use crate::backend::trans_storage::b2_storage::B2Storage;
 
 pub struct Database {
-    client: Arc<Surreal<Client>>,
+    client: Arc<Surreal<Ws>>,
     storage: Arc<B2Storage>,
 }
 
 impl Database {
-    pub async fn new(config: &DatabaseConfig, storage: Arc<B2Storage>) -> Result<Self> {
+    pub async fn new(config: &DatabaseConfig, storage: Arc<B2Storage>) -> Result<Database> {
         info!("Initializing database connection");
-        let client = Arc::new(Surreal::new::<Client>(config.url.clone()).await?);
-        client.signin(config).await?;
+        let client = Arc::new(Surreal::new::<Ws>(config.url.clone()).await?);
+        client.signin(Root {
+            username: &config.username,
+            password: &config.password,
+        }).await?;
         client.use_ns(config.namespace.clone()).use_db(config.database.clone()).await?;
         
         let db = Self { client, storage };
@@ -52,7 +59,7 @@ impl Database {
         ListingService::new(self.client.clone(), self.storage.clone())
     }
 
-    pub fn client(&self) -> Arc<Surreal<Client>> {
+    pub fn client(&self) -> Arc<Surreal<Ws>> {
         self.client.clone()
     }
 } 

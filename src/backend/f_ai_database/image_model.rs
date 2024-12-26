@@ -1,3 +1,4 @@
+use crate::backend::common::{Result, AppError};
 use crate::backend::common::types::image_types::*;
 use surrealdb::{Surreal, engine::remote::ws::Client};
 use std::sync::Arc;
