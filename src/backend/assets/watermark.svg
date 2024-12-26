@@ -1,0 +1,11 @@
+<svg width="200" height="60" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .text { 
+      fill: rgba(255,255,255,0.8); 
+      font-family: Arial, sans-serif; 
+      font-size: 24px;
+      filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.5));
+    }
+  </style>
+  <text x="10" y="40" class="text">Your Brand</text>
+</svg> 

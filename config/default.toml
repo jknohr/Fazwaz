@@ -1,0 +1,44 @@
+# Default configuration - Override with environment variables or local config
+
+[database]
+url = "localhost:8000"
+namespace = "development"
+database = "myapp"
+username = "root"
+# password should be set in environment or local config
+
+[storage]
+endpoint = "https://s3.us-west-001.backblazeb2.com"
+region = "us-west-001"
+bucket_prefix = "development"
+# access_key and secret_key should be set in environment or local config
+
+[openai]
+# api_key should be set in environment or local config
+organization = ""  # Optional
+
+[email]
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+from_address = "noreply@yourdomain.com"
+from_name = "Your App Name"
+reply_to = "support@yourdomain.com"
+encryption = "starttls"
+timeout_seconds = 30
+# Credentials should be in env or local config:
+# username = ""
+# password = ""
+
+# Email templates directory
+templates_dir = "templates/email"
+
+# Rate limiting
+max_emails_per_minute = 60
+max_recipients_per_email = 50 
+
+# 2FA Configuration
+[email.two_factor]
+enabled = true
+# app_password should be set in environment
+backup_codes_file = "config/backup_codes.encrypted"
+totp_enabled = true 

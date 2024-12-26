@@ -1,0 +1,14 @@
+# Copy this file to development.toml and fill in your values
+[database]
+password = "dev_password"
+
+[storage]
+access_key = "your_b2_key_id"
+secret_key = "your_b2_application_key"
+
+[openai]
+api_key = "your_openai_key"
+
+[email]
+username = "dev@example.com"
+password = "app_specific_password" 
