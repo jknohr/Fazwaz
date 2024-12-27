@@ -7,7 +7,7 @@ use tokio::sync::RwLock;
 use serde::{Serialize, Deserialize};
 use tracing::{info, warn};
 
-use crate::error::Result;
+use crate::backend::common::error::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheEntry<T> {

@@ -10,7 +10,7 @@ pub struct DatabaseConfig {
     pub url: String,
     pub namespace: String,
     pub database: String,
-    pub username: Option<String>,
+    username: Option<String>,
     pub password: Option<String>,
 }
 

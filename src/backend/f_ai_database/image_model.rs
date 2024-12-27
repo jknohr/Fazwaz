@@ -1,10 +1,13 @@
-use crate::backend::common::{Result, AppError};
-use crate::backend::common::types::image_types::*;
-use surrealdb::{Surreal, engine::remote::ws::Client};
 use std::sync::Arc;
-use anyhow::Result;
+use surrealdb::Surreal;
+use surrealdb::engine::remote::ws::Client;
 use tracing::{info, warn, instrument};
-use serde::Deserialize;
+use crate::backend::common::{
+    error::error::Result,
+    types::image_types::ImageMetadata,
+};
+use rexiv2::{Metadata as XmpMetadata};
+use serde_json::Value as JsonValue;
 
 pub struct ImageModel {
     db: Arc<Surreal<Client>>,
@@ -59,7 +62,7 @@ impl ImageModel {
         match result {
             Some(img) => {
                 info!(image_id = %img.id, "Image upload recorded successfully");
-                Ok(img.id)
+                Ok(img.id.to_string())
             }
             None => {
                 warn!(listing_id, filename, "Failed to record image upload");
@@ -85,7 +88,7 @@ impl ImageModel {
 
         result.ok_or_else(|| {
             warn!(id, "Failed to update image embedding");
-            anyhow::anyhow!("Failed to update embedding")
+            AppError::Internal("Failed to update embedding".into())
         })
     }
 
@@ -125,5 +128,39 @@ impl ImageModel {
     pub async fn get_metadata(&self, id: &str) -> Result<Option<ImageMetadata>> {
         info!(id, "Fetching image metadata from database");
         Ok(self.db.select(("images", id)).await?)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn get_batch_status(&self, batch_id: &BatchId) -> Result<Option<BatchProcessingStatus>> {
+        let mut response = self.db
+            .query("SELECT * FROM batch WHERE batch_id = $id")
+            .bind(("id", batch_id))
+            .await?;
+            
+        Ok(response.take(0)?)
+    }
+
+    pub async fn extract_metadata(&self, image_id: &ImageId) -> Result<JsonValue> {
+        let image = self.get(image_id).await?
+            .ok_or_else(|| AppError::NotFound("Image not found".into()))?;
+            
+        // Get image data from storage
+        let data = self.storage.download_file(&image.location_path()).await?;
+        
+        // Extract XMP metadata
+        let xmp = XmpMetadata::new_from_buffer(&data)?;
+        let mut metadata = serde_json::Map::new();
+        
+        // Extract standard fields
+        if let Ok(identifier) = xmp.get_tag_string("Xmp.dc.identifier") {
+            metadata.insert("identifier".to_string(), JsonValue::String(identifier));
+        }
+        
+        // Extract custom fields
+        if let Ok(processing_version) = xmp.get_tag_string("Xmp.neural-reef.processingVersion") {
+            metadata.insert("processingVersion".to_string(), JsonValue::String(processing_version));
+        }
+        
+        Ok(JsonValue::Object(metadata))
     }
 } 

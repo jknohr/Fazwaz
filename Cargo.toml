@@ -19,6 +19,8 @@ async-openai = "0.17"
 once_cell = "1.18"
 include_dir = "0.7"
 chrono = { version = "0.4", features = ["serde"] }
+mime_guess = "2.0"
+rexiv2 = "0.28.0"
 uuid7 = { version = "1.1.0", features = ["serde", "std"] }
 tower-http = { version = "0.5", features = ["cors"] }
 surrealdb = { version = "1.0.0" }
@@ -26,7 +28,6 @@ image = { version = "0.24", features = ["webp"] }
 webp = "0.2"
 lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls"] }
 resvg = "0.35.0"
-
 kamadak-exif = "0.5"
 mozjpeg = "0.10.12"
 rayon = "1.7"
@@ -43,6 +44,8 @@ surf = { version = "2.3", features = ["h1-client"] }
 rand = "0.8"
 dotenv = "0.15"
 config = "0.13"
+tower-service = "0.3"
+tower-layer = "0.3"
 
 [dev-dependencies]
 tracing-test = "0.2"

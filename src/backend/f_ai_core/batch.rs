@@ -1,13 +1,11 @@
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use uuid7::Uuid7;
+use uuid7;
 use serde::{Serialize, Deserialize};
 use tracing::{info, instrument};
 
-use crate::{
-    error::Result,
-    monitoring::metrics::BatchMetrics,
-};
+use crate::backend::common::error::error::Result;
+use crate::backend::f_ai_core::metrics::BatchMetrics;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchProcessor<T> 
@@ -37,7 +35,7 @@ where
 
     #[instrument(skip(self, jobs))]
     pub async fn process_batch(&self, jobs: Vec<T>) -> Result<String> {
-        let batch_id = Uuid7::new().to_string();
+        let batch_id = uuid7::uuid7().to_string();
         info!("Processing batch {}", batch_id);
 
         for job in jobs {

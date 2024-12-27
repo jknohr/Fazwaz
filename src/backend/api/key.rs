@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use crate::backend::{
     f_ai_core::state::AppState,
-    common::error::Result,
-    common::types::auth_types::*,
+    common::error::error::Result,
+    common::types::auth_types::{ApiKey, CreateKeyRequest, MessageResponse, KeyResponse},
 };
 use tracing::instrument;
 
@@ -15,8 +15,8 @@ use tracing::instrument;
 pub async fn create_key(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateKeyRequest>,
-) -> Result<Json<ApiKey>> {
-    let key = state.key_service.generate_key(req).await?;
+) -> Result<Json<KeyResponse>> {
+    let key = state.key_service.create_key(req).await?;
     Ok(Json(key))
 }
 

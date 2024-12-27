@@ -1,4 +1,4 @@
-use crate::backend::common::{Result, AppError};
+use crate::backend::common::error::error::{Result, AppError};
 use serde::Serialize;
 use chrono::{DateTime, Utc};
 

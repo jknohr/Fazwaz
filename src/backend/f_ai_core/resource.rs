@@ -3,7 +3,7 @@ use tokio::sync::Semaphore;
 use tracing::{info, warn};
 use serde::{Serialize, Deserialize};
 
-use crate::error::Result;
+use crate::backend::common::error::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceLimits {

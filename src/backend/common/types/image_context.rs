@@ -1,28 +1,72 @@
-use super::id_types::ImageId;
-use crate::backend::f_ai_database::listing_model::Listing;
 use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use crate::backend::common::types::id_types::ImageId;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ImageContext {
     pub id: ImageId,
-    pub listing: Listing,
+    pub listing_id: Option<String>,
     pub filename: String,
     pub content_type: String,
-    pub size: i64,
+    pub size: usize,
     pub width: u32,
     pub height: u32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl ImageContext {
-    pub fn new(id: ImageId, listing: Listing, filename: String, content_type: String, size: i64, width: u32, height: u32) -> Self {
-        Self { id, listing, filename, content_type, size, width, height }
+    pub fn new(
+        id: ImageId,
+        listing_id: Option<String>,
+        filename: String,
+        content_type: String,
+        size: usize,
+        width: u32,
+        height: u32,
+    ) -> Self {
+        let now = Utc::now();
+        Self {
+            id,
+            listing_id,
+            filename,
+            content_type,
+            size,
+            width,
+            height,
+            created_at: now,
+            updated_at: now,
+        }
     }
 
     pub fn location_path(&self) -> String {
-        format!("{}/{}/images/{}", 
-            self.listing.country.to_lowercase(),
-            self.listing.district.to_lowercase(),
-            self.listing.subdistrict.to_lowercase()
-        )
+        match &self.listing_id {
+            Some(listing_id) => format!("listings/{}/images", listing_id),
+            None => "images".to_string()
+        }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Image {
+    pub id: ImageId,
+    pub context: ImageContext,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImageUploadOptions {
+    pub optimize: bool,
+    pub max_size: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImageSearchQuery {
+    pub listing_id: Option<String>,
+    pub filename: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImageSearchResponse {
+    pub image: Image,
+    pub metadata: serde_json::Value,
 } 

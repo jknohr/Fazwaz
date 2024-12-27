@@ -1,5 +1,10 @@
-// External crates
-pub use uuid7;
+// Async & Runtime
+pub use tokio;
+pub use futures;
+pub use async_trait;
+pub use tokio_stream::Stream;
+
+// Web Framework
 pub use axum::{
     self,
     extract::{Multipart, Path, Query, State},
@@ -7,41 +12,55 @@ pub use axum::{
     Router,
     Json,
 };
-pub use tokio;
+pub use tower_http::cors::{self, CorsLayer};
+
+// Serialization & Data
 pub use serde::{self, Serialize, Deserialize};
 pub use serde_json::{self, json};
-pub use tracing::{self, info, warn, error, instrument};
-pub use tracing_subscriber::{self, layer::SubscriberExt, util::SubscriberInitExt};
-pub use uuid7::Uuid;
-pub use tower_http::cors::{self, CorsLayer};
-pub use surrealdb::{self, Surreal};
-pub use async_openai;
 pub use bytes::Bytes;
+
+// Database
+pub use surrealdb::{self, Surreal};
+
+// AI & ML
+pub use async_openai;
+
+// Utilities
+pub use uuid7::{self, Uuid};
 pub use image;
 pub use lettre;
-pub use anyhow;
-pub use thiserror;
-pub use futures;
-pub use async_trait;
+pub use base64;
+pub use mime_guess;
 pub use once_cell;
 pub use chrono::{self, DateTime, Utc};
 pub use backoff;
 pub use cached;
-pub use base64;
-pub use tokio_stream::Stream;
+
+// Error Handling
+pub use anyhow;
+pub use thiserror;
+
+// Monitoring & Metrics
+pub use tracing::{self, info, warn, error, instrument};
+pub use tracing_subscriber::{self, layer::SubscriberExt, util::SubscriberInitExt};
 pub use metrics_exporter_prometheus;
 
 // Internal modules
-pub mod backend;
-
-// Re-exports from internal modules
-pub use backend::api;
-pub use backend::common;
-pub use backend::f_ai_core;
-pub use backend::f_ai_database;
-pub use backend::key_logic_auth;
-pub use backend::image_processor;
+pub mod backend {
+    pub mod f_ai_core;
+    pub mod f_ai_database;
+    pub mod common;
+    pub mod api;
+    pub mod llm_caller;
+    pub mod key_logic_auth;
+    pub mod monitoring;
+    pub mod email;
+}
 
 // Constants
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const MAX_UPLOAD_SIZE: usize = 10 * 1024 * 1024; // 10MB 
+
+// Re-export commonly used items
+pub use backend::common::error::error::Result;
+pub use backend::f_ai_database::database::DatabaseManager;

@@ -7,7 +7,7 @@ use lettre::{
 use serde_json::json;
 use tracing::{info, instrument};
 
-use crate::backend::common::{Result, AppError};
+use crate::backend::common::error::error::{Result, AppError};
 
 #[derive(Clone)]
 pub struct EmailService {
@@ -32,8 +32,8 @@ impl EmailService {
             .build();
 
         let mut handlebars = Handlebars::new();
-        handlebars.register_template_string("key_email", include_str!("../assets/key_email.html"))?;
-        handlebars.register_template_string("key_email_text", include_str!("../assets/key_email_text.txt"))?;
+        handlebars.register_template_string("key_email", include_str!("../email/templates/key_email.html"))?;
+        handlebars.register_template_string("key_email_text", include_str!("../email/templates/key_email_text.txt"))?;
 
         Ok(Self {
             mailer,
@@ -55,7 +55,7 @@ impl EmailService {
         let html_body = self.handlebars.render("key_email", &data)?;
         let text_body = self.handlebars.render("key_email_text", &data)?;
 
-        let email = Message::builder()
+        let email_message = Message::builder()
             .from(self.from_email.parse()?)
             .to(email.parse()?)
             .subject("Your Access Key")
@@ -65,7 +65,7 @@ impl EmailService {
                     .singlepart(SinglePart::builder().header(header::ContentType::TEXT_HTML).body(html_body))
             )?;
 
-        self.mailer.send(email).await?;
+        self.mailer.send(email_message).await?;
         info!("Successfully sent key email to: {}", email);
         Ok(())
     }

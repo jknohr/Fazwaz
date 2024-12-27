@@ -5,7 +5,7 @@ use axum::{
 use std::sync::Arc;
 use crate::backend::{
     f_ai_core::state::AppState,
-    common::error::Result,
+    common::error::error::{Result, AppError},
 };
 use tracing::instrument;
 
@@ -15,7 +15,8 @@ pub async fn serve_metrics(
 ) -> Result<Response> {
     let metrics = state.metrics.gather();
     let encoded = prometheus::TextEncoder::new()
-        .encode_to_string(&metrics)?;
+        .encode_to_string(&metrics)
+        .map_err(|e| AppError::Internal(format!("Prometheus encoding error: {}", e)))?;
     
     Ok(encoded.into_response())
 } 

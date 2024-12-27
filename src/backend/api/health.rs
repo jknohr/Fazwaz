@@ -7,7 +7,7 @@ use serde::Serialize;
 use std::sync::Arc;
 use tracing::{info, warn, instrument};
 use crate::backend::{
-    common::error::Result,
+    common::error::error::Result,
     f_ai_core::state::AppState,
 };
 
@@ -50,21 +50,28 @@ pub struct HealthResponse {
 pub async fn check_health(
     State(state): State<Arc<AppState>>,
 ) -> Result<(StatusCode, Json<HealthResponse>)> {
-    let timer = state.metrics.health_check_duration.start_timer();
+    let timer = state.metrics.health_metrics.health_check_duration.start_timer();
     let mut components = Vec::new();
     let mut is_degraded = false;
     let mut is_healthy = true;
 
     // Get health checks from components
     let checks = vec![
-        state.db.check_health().await,
+        ComponentHealth {
+            name: "database".to_string(),
+            status: state.db.check_health().await?,
+            latency_ms: 0,
+            last_check: chrono::Utc::now(),
+            details: None,
+        }
     ];
 
-    for check in checks {
+    for check in &checks {
         is_degraded |= matches!(check.status, ComponentStatus::Degraded);
         is_healthy &= matches!(check.status, ComponentStatus::Up);
-        components.push(check);
     }
+
+    components.extend(checks);
 
     let system_status = if is_healthy {
         SystemStatus::Healthy
@@ -102,7 +109,10 @@ pub async fn check_readiness(
     ];
 
     let all_ready = checks.iter()
-        .all(|check| matches!(check.status, ComponentStatus::Up));
+        .all(|check: &Result<ComponentStatus>| match check {
+            Ok(status) => matches!(status, ComponentStatus::Up),
+            Err(_) => false,
+        });
 
     Ok(if all_ready {
         StatusCode::OK

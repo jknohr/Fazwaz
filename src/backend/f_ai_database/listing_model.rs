@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid7;
 use chrono::{DateTime, Utc};
 use tracing::{info, warn, instrument};
-use crate::backend::common::{Result, AppError};
+use crate::backend::common::error::error::{Result, AppError};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]
 pub struct ListingId(String);
@@ -15,7 +15,7 @@ impl ListingId {
             Ok(Self(value))
         } else {
             warn!(id = %value, "Invalid listing ID format");
-            Err(Error::Validation("Invalid listing ID format".to_string()))
+            Err(AppError::Validation("Invalid listing ID format".into()))
         }
     }
 
@@ -29,7 +29,7 @@ impl ListingId {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Listing {
     pub id: String,  // Internal ID (UUID7)
     pub listing_id: ListingId,
@@ -40,6 +40,9 @@ pub struct Listing {
     pub bathrooms: u32,
     pub square_meter: u32,
     pub amenities: Vec<Amenity>,
+    pub country: String,
+    pub district: String,
+    pub subdistrict: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub status: ListingStatus,
@@ -52,35 +55,35 @@ impl Listing {
     
     fn validate_price(price: f64) -> Result<()> {
         if price < 0.0 {
-            return Err(Error::Validation("Price cannot be negative".to_string()));
+            return Err(AppError::Validation("Price cannot be negative".into()));
         }
         Ok(())
     }
 
     fn validate_rooms(rooms: u32) -> Result<()> {
         if rooms > 100 {
-            return Err(Error::Validation("Invalid number of rooms".to_string()));
+            return Err(AppError::Validation("Invalid number of rooms".into()));
         }
         Ok(())
     }
 
     fn validate_square_meter(sqft: u32) -> Result<()> {
         if sqft == 0 || sqft > 100_000 {
-            return Err(Error::Validation("Invalid square footage".to_string()));
+            return Err(AppError::Validation("Invalid square footage".into()));
         }
         Ok(())
     }
 
     fn validate_title(title: &str) -> Result<()> {
         if title.is_empty() || title.len() > 200 {
-            return Err(Error::Validation("Title must be between 1 and 200 characters".to_string()));
+            return Err(AppError::Validation("Title must be between 1 and 200 characters".into()));
         }
         Ok(())
     }
 
     fn validate_description(description: &str) -> Result<()> {
         if description.len() > 2000 {
-            return Err(Error::Validation("Description cannot exceed 2000 characters".to_string()));
+            return Err(AppError::Validation("Description cannot exceed 2000 characters".into()));
         }
         Ok(())
     }
@@ -106,7 +109,7 @@ impl Listing {
                     to = ?new_status,
                     "Invalid status transition"
                 );
-                Err(Error::Validation("Invalid status transition".to_string()))
+                Err(AppError::Validation("Invalid status transition".into()))
             }
         }?;
         
@@ -121,7 +124,7 @@ impl Listing {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub enum ListingStatus {
     #[default]
     Draft,
@@ -140,6 +143,9 @@ pub struct ListingBuilder {
     bathrooms: Option<u32>,
     square_meter: Option<u32>,
     amenities: Vec<Amenity>,
+    country: Option<String>,
+    district: Option<String>,
+    subdistrict: Option<String>,
     status: Option<ListingStatus>,
 }
 
@@ -189,19 +195,34 @@ impl ListingBuilder {
         self
     }
 
+    pub fn country(mut self, country: String) -> Self {
+        self.country = Some(country);
+        self
+    }
+
+    pub fn district(mut self, district: String) -> Self {
+        self.district = Some(district);
+        self
+    }
+
+    pub fn subdistrict(mut self, subdistrict: String) -> Self {
+        self.subdistrict = Some(subdistrict);
+        self
+    }
+
     pub fn build(self) -> Result<Listing> {
         let listing_id = self.listing_id.ok_or_else(|| 
-            Error::Validation("Listing ID is required".to_string()))?;
+            AppError::Validation("Listing ID is required".into()))?;
             
         let title = self.title.ok_or_else(|| 
-            Error::Validation("Title is required".to_string()))?;
+            AppError::Validation("Title is required".into()))?;
         Listing::validate_title(&title)?;
             
         let description = self.description.unwrap_or_default();
         Listing::validate_description(&description)?;
 
         let price = self.price.ok_or_else(|| 
-            Error::Validation("Price is required".to_string()))?;
+            AppError::Validation("Price is required".into()))?;
         Listing::validate_price(price)?;
 
         let bedrooms = self.bedrooms.unwrap_or(0);
@@ -223,6 +244,9 @@ impl ListingBuilder {
             bathrooms,
             square_meter,
             amenities: self.amenities,
+            country: self.country.unwrap_or_default(),
+            district: self.district.unwrap_or_default(),
+            subdistrict: self.subdistrict.unwrap_or_default(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
             status: self.status.unwrap_or(ListingStatus::Draft),

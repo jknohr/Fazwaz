@@ -1,5 +1,15 @@
 use std::sync::Arc;
-use async_openai::{Client, types::CreateChatCompletionRequest};
+use async_openai::{
+    Client,
+    types::{
+        CreateChatCompletionRequest,
+        ChatCompletionRequestMessage,
+        ChatCompletionRequestSystemMessage,
+        ChatCompletionRequestUserMessage,
+        ChatCompletionRequestUserMessageContent,
+    },
+    config::Config,
+};
 use serde::{Serialize, Deserialize};
 use tracing::{info, warn, instrument};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -7,10 +17,13 @@ use tokio::sync::Semaphore;
 use futures::future;
 
 use crate::backend::common::{
-    error::{Result, AppError},
+    error::error::{Result, AppError},
     config::OpenAIConfig,
-    types::{ListingId, BatchId},
+    types::id_types::{ListingId, BatchId}
 };
+use crate::backend::monitoring::metrics::LLMMetrics;
+use super::types::ImageAnalysis;
+use super::prompts::ImageAnalysisPrompt;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BatchImageRequest {
@@ -26,7 +39,7 @@ pub struct BatchResult {
 }
 
 pub struct BatchAnalysisService {
-    client: Client,
+    client: Client<async_openai::config::OpenAIConfig>,
     metrics: Arc<LLMMetrics>,
     prompt: String,
     semaphore: Arc<Semaphore>,
@@ -34,13 +47,13 @@ pub struct BatchAnalysisService {
 
 impl BatchAnalysisService {
     pub fn new(config: OpenAIConfig, metrics: Arc<LLMMetrics>) -> Self {
-        let client = Client::new().with_api_key(&config.api_key);
+        let client = Client::with_config(config.clone().into_client_config());
         let prompt = include_str!("../assets/analyse_image.md").to_string();
         Self { 
             client,
             metrics,
             prompt,
-            semaphore: Arc::new(Semaphore::new(5)), // Limit concurrent batches
+            semaphore: Arc::new(Semaphore::new(5)),
         }
     }
 
@@ -49,6 +62,8 @@ impl BatchAnalysisService {
         let timer = self.metrics.batch_processing_duration.start_timer();
         let batch_id = BatchId::generate();
 
+        let filenames: Vec<_> = request.images.iter().map(|(f, _)| f.clone()).collect();
+        
         info!(
             listing_id = %request.listing_id,
             batch_id = %batch_id,
@@ -60,7 +75,7 @@ impl BatchAnalysisService {
         let futures = request.images.into_iter().map(|(filename, data)| {
             let permit = self.semaphore.clone().acquire_owned();
             let client = self.client.clone();
-            let prompt = self.prompt.clone();
+            let prompt = ImageAnalysisPrompt::default();
             
             async move {
                 let _permit = permit.await.map_err(|e| 
@@ -76,7 +91,7 @@ impl BatchAnalysisService {
         let mut analyses = Vec::new();
         let mut failed = Vec::new();
 
-        for (filename, result) in request.images.iter().map(|(f, _)| f).zip(results) {
+        for (filename, result) in filenames.iter().zip(results) {
             match result {
                 Ok(analysis) => analyses.push(analysis),
                 Err(_) => failed.push(filename.clone()),
@@ -106,20 +121,25 @@ impl BatchAnalysisService {
         let base64_image = BASE64.encode(&data);
         
         let request = CreateChatCompletionRequest {
-            model: "1o-mini".into(),
-            messages: vec![serde_json::json!({
-                "role": "user",
-                "content": [
-                    { "type": "text", "text": self.prompt },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": format!("data:image/webp;base64,{}", base64_image),
-                            "detail": "high"
-                        }
+            model: "gpt-1o-mini".into(),
+            messages: vec![
+                ChatCompletionRequestMessage::System(
+                    ChatCompletionRequestSystemMessage {
+                        role: async_openai::types::Role::System,
+                        content: Some(self.prompt.clone()),
+                        name: None,
                     }
-                ]
-            })],
+                ),
+                ChatCompletionRequestMessage::User(
+                    ChatCompletionRequestUserMessage {
+                        role: Some("user".to_string()),
+                        content: Some(ChatCompletionRequestUserMessageContent::Text(
+                            format!("Analyze this image: {}", filename)
+                        )),
+                        name: None,
+                    }
+                ),
+            ],
             max_tokens: Some(1000),
             ..Default::default()
         };
@@ -130,124 +150,11 @@ impl BatchAnalysisService {
             .await
             .map_err(|e| AppError::ExternalService(format!("OpenAI error: {}", e)))?;
 
-        serde_json::from_str(&response.choices[0].message.content)
+        let content = response.choices[0].message.content
+            .as_ref()
+            .ok_or_else(|| AppError::ParseError("Empty response from OpenAI".to_string()))?;
+
+        serde_json::from_str(content)
             .map_err(|e| AppError::ParseError(format!("Failed to parse response: {}", e)))
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ImageAnalysis {
-    pub photo_id: String,
-    pub timestamp: String,
-    pub location_context: LocationContext,
-    pub primary_focus: String,
-    pub area_details: AreaDetails,
-    pub lighting_and_atmosphere: LightingAtmosphere,
-    pub furniture_and_fixtures: FurnitureFixtures,
-    pub outdoor_features: Option<OutdoorFeatures>,
-    pub amenities_and_selling_points: AmenitiesSellingPoints,
-    pub observations_and_issues: ObservationsIssues,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LocationContext {
-    Indoor,
-    Outdoor,
-    Mixed,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AreaDetails {
-    pub area_type: String,
-    pub size_category: SizeCategory,
-    pub notable_features: Vec<String>,
-    pub condition: AreaCondition,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SizeCategory {
-    Small,
-    Medium,
-    Large,
-    Unknown,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AreaCondition {
-    pub cleanliness: u8,  // 1-5
-    pub damage: String,
-    pub renovation_status: RenovationStatus,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RenovationStatus {
-    Modern,
-    Dated,
-    Unknown,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LightingAtmosphere {
-    pub natural_light_level: u8,  // 1-5
-    pub artificial_light_level: u8,  // 1-5
-    pub ambiance: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct FurnitureFixtures {
-    pub furniture_present: bool,
-    pub furniture_type: Vec<String>,
-    pub furniture_condition: FurnitureCondition,
-    pub built_in_features: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum FurnitureCondition {
-    New,
-    Worn,
-    Broken,
-    Indeterminate,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OutdoorFeatures {
-    pub outdoor_type: String,
-    pub condition: u8,  // 1-5
-    pub special_features: Vec<String>,
-    pub view: View,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct View {
-    #[serde(rename = "type")]
-    pub view_type: ViewType,
-    pub quality: u8,  // 1-5
-    pub obstructions: Option<Vec<String>>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ViewType {
-    Nature,
-    Urban,
-    Mixed,
-    Obstructed,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AmenitiesSellingPoints {
-    pub visible_amenities: Vec<String>,
-    pub decorative_elements: Vec<String>,
-    pub standout_features: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ObservationsIssues {
-    pub property_issues: String,
-    pub potential_selling_points: Vec<String>,
-    pub additional_notes: String,
 } 

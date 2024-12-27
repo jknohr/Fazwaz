@@ -21,7 +21,7 @@ Core backend functionality for the Neural Reef system.
 
 ### Key Features
 - Async/await patterns
-- Error handling
+-  handling
 - Structured logging
 - Database transactions
 - Cloud storage integration 

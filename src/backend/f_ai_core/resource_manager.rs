@@ -1,7 +1,8 @@
 use tokio::sync::Semaphore;
 use std::sync::Arc;
-use crate::backend::common::{Result, AppError};
+use crate::backend::common::error::error::{Result, AppError};
 use tracing::info;
+use super::resource_types::SemaphorePermit;
 
 #[derive(Debug)]
 pub struct ResourceConfig {
@@ -31,28 +32,26 @@ impl ResourceManager {
     }
 
     pub async fn acquire_upload(&self) -> Result<SemaphorePermit> {
-        Ok(self.upload_semaphore.acquire().await?)
+        let permit = self.upload_semaphore.acquire().await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(SemaphorePermit { _permit: permit })
     }
 
     pub async fn acquire_processing(&self) -> Result<SemaphorePermit> {
-        Ok(self.processing_semaphore.acquire().await?)
+        let permit = self.processing_semaphore.acquire().await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(SemaphorePermit { _permit: permit })
     }
 
     pub async fn acquire_search(&self) -> Result<SemaphorePermit> {
-        Ok(self.search_semaphore.acquire().await?)
+        let permit = self.search_semaphore.acquire().await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(SemaphorePermit { _permit: permit })
     }
 
     pub async fn acquire_embedding(&self) -> Result<SemaphorePermit> {
-        Ok(self.embedding_semaphore.acquire().await?)
-    }
-}
-
-pub struct SemaphorePermit<'a> {
-    _permit: tokio::sync::SemaphorePermit<'a>,
-}
-
-impl<'a> Drop for SemaphorePermit<'a> {
-    fn drop(&mut self) {
-        // Permit is automatically released when dropped
+        let permit = self.embedding_semaphore.acquire().await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(SemaphorePermit { _permit: permit })
     }
 } 

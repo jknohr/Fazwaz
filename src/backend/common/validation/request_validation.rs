@@ -1,4 +1,4 @@
-use crate::backend::common::{Result, AppError, ImageError};
+use crate::backend::common::error::error::{Result, AppError, ImageError};
 use axum::extract::multipart::{Field, Multipart};
 
 pub const MAX_FILE_SIZE: usize = 10 * 1024 * 1024; // 10MB

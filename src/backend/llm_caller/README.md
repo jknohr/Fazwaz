@@ -1,18 +1,8 @@
 # LLM Caller Module
 
-Large Language Model integration service.
+This module handles interactions with language models for image analysis:
 
-## Components
-
-### LLM Integration
-- API communication
-- Prompt management
-- Response processing
-- Error handling
-
-### Features
-- Async API calls
-- Rate limiting
-- Response caching
-- Error recovery
-- Prompt templating 
+- `batch_analysis_service.rs`: Handles batch processing of images through LLM
+- `prompt_service.rs`: Manages system prompts and response formats
+- `prompts/`: Contains prompt templates and schemas
+- `types/`: Shared type definitions 

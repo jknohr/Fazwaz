@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
-use crate::{
-    f_ai_database::Database,
-    error::Result,
+use crate::backend::{
+    f_ai_database::database::DatabaseManager as Database,
+    common::error::error::Result
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,12 +33,22 @@ impl EventLogger {
     }
 
     pub async fn log_event(&self, event: SystemEvent) -> Result<()> {
-        self.db.query("CALL fn::record_system_event($type, $severity, $message, $metadata)")
+        self.db.client()
+            .query("CALL fn::record_system_event($type, $severity, $message, $metadata)")
             .bind(("type", &event.event_type))
             .bind(("severity", format!("{:?}", event.severity).to_lowercase()))
             .bind(("message", &event.message))
             .bind(("metadata", &event.metadata))
             .await?;
         Ok(())
+    }
+    pub async fn get_recent_events(&self, limit: usize) -> Result<Vec<SystemEvent>> {
+        let mut response = self.db.client()
+            .query("SELECT * FROM system_events ORDER BY timestamp DESC LIMIT $limit")
+            .bind(("limit", limit))
+            .await?;
+        
+        let events = response.take(0)?;
+        Ok(events)
     }
 } 

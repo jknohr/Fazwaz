@@ -3,10 +3,12 @@ use axum::{
     Json,
 };
 use std::sync::Arc;
-use crate::{
-    state::AppState,
-    error::Result,
-    common::types::image_types::ImageSearchQuery,
+use crate::backend::{
+    f_ai_core::state::AppState,
+    common::{
+        error::error::Result,
+        types::image_types::{ImageSearchQuery, ImageSearchResponse},
+    }
 };
 use tracing::instrument;
 
@@ -15,7 +17,7 @@ pub async fn search_images(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ImageSearchQuery>,
 ) -> Result<Json<Vec<ImageSearchResponse>>> {
-    let results = state.search_service
+    let results = state.image_service
         .search_images(query)
         .await?;
     
@@ -28,7 +30,7 @@ pub async fn search_by_embedding(
     State(state): State<Arc<AppState>>,
     Json(embedding): Json<Vec<f32>>,
 ) -> Result<Json<Vec<ImageSearchResponse>>> {
-    let results = state.search_service
+    let results = state.image_service
         .search_by_embedding(embedding)
         .await?;
     
