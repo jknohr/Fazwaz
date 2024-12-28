@@ -11,17 +11,17 @@ use crate::backend::common::{
 use tracing::{info, instrument};
 
 pub struct ListingService {
-    db: Arc<Surreal<Client>>,
+    client: Arc<Surreal<Client>>,
 }
 
 impl ListingService {
     pub fn new(db: Arc<Surreal<Client>>) -> Self {
-        Self { db }
+        Self { client: db }
     }
 
     #[instrument(skip(self))]
     pub async fn create_listing(&self, listing: Listing) -> Result<Listing> {
-        let mut response = self.db.client()
+        let mut response = self.client
             .query("CREATE listing CONTENT $listing RETURN AFTER")
             .bind(("listing", &listing))
             .await?;
@@ -32,7 +32,7 @@ impl ListingService {
 
     #[instrument(skip(self))]
     pub async fn get_listing_by_listing_id(&self, id: &ListingId) -> Result<Option<Listing>> {
-        let mut response = self.db.client()
+        let mut response = self.client
             .query("SELECT * FROM listing WHERE listing_id = $id")
             .bind(("id", id))
             .await?;
@@ -42,7 +42,7 @@ impl ListingService {
 
     #[instrument(skip(self))]
     pub async fn update_listing(&self, id: &ListingId, updates: UpdateListingRequest) -> Result<Listing> {
-        let mut response = self.db.client()
+        let mut response = self.client
             .query("UPDATE listing SET * = $updates WHERE listing_id = $id RETURN AFTER")
             .bind(("id", id))
             .bind(("updates", updates))
@@ -54,7 +54,7 @@ impl ListingService {
 
     #[instrument(skip(self))]
     pub async fn update_status(&self, id: &ListingId, status: ListingStatus) -> Result<()> {
-        let mut response = self.db
+        let mut response = self.client
             .query("UPDATE listing SET status = $status WHERE listing_id = $id")
             .bind(("id", id))
             .bind(("status", status))

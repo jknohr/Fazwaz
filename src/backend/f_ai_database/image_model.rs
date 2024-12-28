@@ -3,11 +3,9 @@ use surrealdb::Surreal;
 use surrealdb::engine::remote::ws::Client;
 use tracing::{info, warn, instrument};
 use crate::backend::common::{
-    error::error::Result,
+    error::error::{Result, AppError},
     types::image_types::ImageMetadata,
 };
-use rexiv2::{Metadata as XmpMetadata};
-use serde_json::Value as JsonValue;
 
 pub struct ImageModel {
     db: Arc<Surreal<Client>>,

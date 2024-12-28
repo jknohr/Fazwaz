@@ -10,11 +10,11 @@ pub struct DatabaseManager {
 }
 
 impl DatabaseManager {
-    fn new(client: Arc<Surreal<Client>>) -> Self {
+    pub fn new(client: Arc<Surreal<Client>>) -> Self {
         Self { client }
     }
 
-    async fn connection(config: &DatabaseConfig) -> Result<Self> {
+    pub async fn connection(config: &DatabaseConfig) -> Result<Self> {
         let client = Surreal::new::<Wss>(config.url.as_str()).await?;
         
         client.signin(config.get_credentials()).await?;
@@ -27,7 +27,7 @@ impl DatabaseManager {
         Ok(db)
     }
 
-    fn client(&self) -> &Surreal<Client> {
+    pub fn client(&self) -> &Surreal<Client> {
         &self.client
     }
 } 
