@@ -1,7 +1,8 @@
 use std::sync::Arc;
-use surrealdb::{Surreal, engine::remote::ws::Client};
+use surrealdb::Surreal;
+use surrealdb::engine::remote::ws::Client;
 use crate::backend::common::error::Result;
-use tracing::instrument;
+
 pub struct BatchService {
     db: Arc<Surreal<Client>>,
 }

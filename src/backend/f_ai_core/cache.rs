@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::RwLock;
 use serde::{Serialize, Deserialize};
@@ -9,10 +9,36 @@ use tracing::{info, warn};
 
 use crate::backend::common::error::error::Result;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CacheEntry<T> {
     pub value: T,
     pub expires_at: Instant,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializableCacheEntry<T> 
+where T: Serialize
+{
+    pub value: T,
+    pub expires_at: u64,  // Unix timestamp
+}
+
+impl<T> CacheEntry<T> 
+where T: Serialize + Clone
+{
+    fn to_serializable(&self) -> SerializableCacheEntry<T> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let remaining = self.expires_at.saturating_duration_since(Instant::now());
+        let expires_at = now + remaining.as_secs();
+
+        SerializableCacheEntry {
+            value: self.value.clone(),
+            expires_at,
+        }
+    }
 }
 
 pub struct Cache<T> 

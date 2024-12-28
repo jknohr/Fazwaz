@@ -1,17 +1,21 @@
 use std::sync::Arc;
 use crate::backend::common::error::error::Result;
-use crate::backend::f_ai_database::DatabaseManager as Database;
-use serde_json::json;
+use crate::backend::f_ai_database::database::DatabaseManager as Database;
+use serde_json::{json, Value as JsonValue};
 use prometheus::{IntCounter, Registry, Histogram, HistogramOpts};
+use serde::{Serialize, Deserialize};
+use surrealdb::Response;
+use surrealdb::sql::Value;
 
 pub struct MetricsCollector {
     pub registry: Registry,
     pub health_metrics: Arc<HealthMetrics>,
     pub batch_metrics: Arc<BatchMetrics>,
+    db: Arc<Database>,
 }
 
 impl MetricsCollector {
-    pub fn new() -> Self {
+    pub fn new(db: Arc<Database>) -> Self {
         let registry = Registry::new();
         let health_metrics = Arc::new(HealthMetrics::new());
         let batch_metrics = Arc::new(BatchMetrics::new(&registry));
@@ -20,37 +24,44 @@ impl MetricsCollector {
             registry,
             health_metrics,
             batch_metrics,
+            db,
         }
     }
 
-    pub async fn increment_counter(&self, name: &str, labels: Option<serde_json::Value>) -> Result<()> {
-        self.db.query("CALL fn::record_metric($name, 'counter', 1, $labels)")
+    pub async fn increment_counter(&self, name: String, labels: Option<serde_json::Value>) -> Result<()> {
+        let response = self.db.client()
+            .query("CALL fn::record_metric($name, 'counter', 1, $labels)")
             .bind(("name", name))
             .bind(("labels", labels))
             .await?;
+        response.check()?;
         Ok(())
     }
 
-    pub async fn record_gauge(&self, name: &str, value: f64, labels: Option<serde_json::Value>) -> Result<()> {
-        self.db.query("CALL fn::record_metric($name, 'gauge', $value, $labels)")
-            .bind(("name", name))
-            .bind(("value", value))
-            .bind(("labels", labels))
-            .await?;
-        Ok(())
-    }
-
-    pub async fn record_histogram(&self, name: &str, value: f64, labels: Option<serde_json::Value>) -> Result<()> {
-        self.db.query("CALL fn::record_metric($name, 'histogram', $value, $labels)")
+    pub async fn record_gauge(&self, name: String, value: f64, labels: Option<serde_json::Value>) -> Result<()> {
+        let response = self.db.client()
+            .query("CALL fn::record_metric($name, 'gauge', $value, $labels)")
             .bind(("name", name))
             .bind(("value", value))
             .bind(("labels", labels))
             .await?;
+        response.check()?;
         Ok(())
     }
 
-    pub async fn get_metric_summary(&self, name: &str, window: &str) -> Result<serde_json::Value> {
-        let mut response = self.db
+    pub async fn record_histogram(&self, name: String, value: f64, labels: Option<serde_json::Value>) -> Result<()> {
+        let response = self.db.client()
+            .query("CALL fn::record_metric($name, 'histogram', $value, $labels)")
+            .bind(("name", name))
+            .bind(("value", value))
+            .bind(("labels", labels))
+            .await?;
+        response.check()?;
+        Ok(())
+    }
+
+    pub async fn get_metric_summary(&self, name: String, window: String) -> Result<JsonValue> {
+        let mut response = self.db.client()
             .query(r#"
                 SELECT 
                     metric_name,
@@ -69,15 +80,23 @@ impl MetricsCollector {
             .bind(("window", window))
             .await?;
 
-        let summary = response.take(0)?;
-        Ok(summary)
+        let result: Vec<Value> = response.take(0)?;
+        Ok(serde_json::to_value(&result)?)
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct BatchMetrics {
     pub batches_processed: IntCounter,
     pub jobs_completed: IntCounter,
     pub jobs_failed: IntCounter,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchMetricsSnapshot {
+    pub batches_processed: u64,
+    pub jobs_completed: u64,
+    pub jobs_failed: u64,
 }
 
 impl BatchMetrics {
@@ -94,6 +113,14 @@ impl BatchMetrics {
             batches_processed,
             jobs_completed,
             jobs_failed,
+        }
+    }
+
+    pub fn snapshot(&self) -> BatchMetricsSnapshot {
+        BatchMetricsSnapshot {
+            batches_processed: self.batches_processed.get(),
+            jobs_completed: self.jobs_completed.get(),
+            jobs_failed: self.jobs_failed.get(),
         }
     }
 }

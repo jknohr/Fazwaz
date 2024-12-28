@@ -26,35 +26,42 @@ impl AuditLogger {
     }
 
     pub async fn log_action(&self, log: AuditLog) -> Result<()> {
-        self.db.client()
-            .query("CALL fn::record_audit_log($action, $user_id, $resource_type, $resource_id, $changes)")
-            .bind(("action", &log.action))
-            .bind(("user_id", &log.user_id))
-            .bind(("resource_type", &log.resource_type))
-            .bind(("resource_id", &log.resource_id))
-            .bind(("changes", &log.changes))
-            .await?;
+        let mut query = self.db.client()
+            .query("CALL fn::record_audit_log($action, $user_id, $resource_type, $resource_id, $changes)");
+        
+        query = query
+            .bind(("action", log.action))
+            .bind(("user_id", log.user_id))
+            .bind(("resource_type", log.resource_type))
+            .bind(("resource_id", log.resource_id))
+            .bind(("changes", log.changes));
+        
+        query.await?;
         Ok(())
     }
 
-    pub async fn get_resource_history(&self, resource_type: &str, resource_id: &str) -> Result<Vec<AuditLog>> {
-        let mut response = self.db.client()
-            .query("SELECT * FROM audit_logs WHERE resource_type = $type AND resource_id = $id ORDER BY timestamp DESC")
-            .bind(("type", resource_type))
-            .bind(("id", resource_id))
-            .await?;
+    pub async fn get_resource_history(&self, resource_type: String, resource_id: String) -> Result<Vec<AuditLog>> {
+        let mut query = self.db.client()
+            .query("SELECT * FROM audit_logs WHERE resource_type = $type AND resource_id = $id ORDER BY timestamp DESC");
         
+        query = query
+            .bind(("type", resource_type))
+            .bind(("id", resource_id));
+        
+        let mut response = query.await?;
         let logs = response.take(0)?;
         Ok(logs)
     }
 
-    pub async fn get_user_actions(&self, user_id: &str, limit: usize) -> Result<Vec<AuditLog>> {
-        let mut response = self.db.client()
-            .query("SELECT * FROM audit_logs WHERE user_id = $user_id ORDER BY timestamp DESC LIMIT $limit")
-            .bind(("user_id", user_id))
-            .bind(("limit", limit))
-            .await?;
+    pub async fn get_user_actions(&self, user_id: String, limit: usize) -> Result<Vec<AuditLog>> {
+        let mut query = self.db.client()
+            .query("SELECT * FROM audit_logs WHERE user_id = $user_id ORDER BY timestamp DESC LIMIT $limit");
         
+        query = query
+            .bind(("user_id", user_id))
+            .bind(("limit", limit));
+        
+        let mut response = query.await?;
         let logs = response.take(0)?;
         Ok(logs)
     }

@@ -1,13 +1,12 @@
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use uuid7;
-use serde::{Serialize, Deserialize};
 use tracing::{info, instrument};
 
 use crate::backend::common::error::error::Result;
 use crate::backend::f_ai_core::metrics::BatchMetrics;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct BatchProcessor<T> 
 where 
     T: Clone + Send + 'static 

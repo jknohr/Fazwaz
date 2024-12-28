@@ -2,52 +2,90 @@
 name = "f_ai_backend"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.83.0"
 
 [dependencies]
-prometheus = "0.13.4"
-axum = { version = "0.7", features = ["macros", "multipart"] }
-tokio = { version = "1.0", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
+# Core Async and Web Framework
+axum = { version = "0.7.9", features = ["macros", "multipart"] }
+tokio = { version = "1.42.0", features = ["full"] }
+tower-http = { version = "0.6.2", features = ["cors"] }
+tower-service = "0.3.3"
+tower-layer = "0.3.3"
+
+# Serialization and Parsing
+serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-anyhow = "1.0"
-thiserror = "1.0"
-futures = "0.3"
-async-trait = "0.1"
-async-openai = "0.17"
-once_cell = "1.18"
-include_dir = "0.7"
-chrono = { version = "0.4", features = ["serde"] }
-mime_guess = "2.0"
-rexiv2 = "0.28.0"
 uuid7 = { version = "1.1.0", features = ["serde", "std"] }
-tower-http = { version = "0.5", features = ["cors"] }
-surrealdb = { version = "1.0.0" }
-image = { version = "0.24", features = ["webp"] }
-webp = "0.2"
-lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls"] }
-resvg = "0.35.0"
-kamadak-exif = "0.5"
-mozjpeg = "0.10.12"
-rayon = "1.7"
-bytes = "1.4"
-memmap2 = "0.5"
-backoff = { version = "0.4", features = ["tokio"] }
-cached = "0.44"
-base64 = "0.21"
-tokio-stream = "0.1"
-metrics-exporter-prometheus = "0.12"
-handlebars = "4.3"
-aws-sdk-s3 = "1.66.0"
-surf = { version = "2.3", features = ["h1-client"] }
-rand = "0.8"
+config = "0.15.4"
 dotenv = "0.15"
-config = "0.13"
-tower-service = "0.3"
-tower-layer = "0.3"
+
+# Database and Storage
+surrealdb = { version = "2.1.4" }
+aws-sdk-s3 = "1.66.0"
+
+# Metrics and Monitoring
+prometheus = "0.13.4"
+metrics-exporter-prometheus = "0.16.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "time", "json"] }
+
+# Error Handling and Utilities
+anyhow = "1.0.95"
+thiserror = "2.0.9"
+futures = "0.3.31"
+async-trait = "0.1.83"
+once_cell = "1.20.2"
+backoff = { version = "0.4.0", features = ["tokio"] }
+
+# Image Processing and Media
+image = { version = "0.25.5", features = ["webp"] }
+webp = "0.3.0"
+resvg = "0.44.0"
+kamadak-exif = "0.6.1"
+mozjpeg = "0.10.12"
+
+mime_guess = "2.0.5"
+
+# Date and Time
+chrono = { version = "0.4.39", features = ["serde"] }
+
+# Networking and Requests
+lettre = { version = "0.11.11", features = ["tokio1", "tokio1-native-tls"] }
+surf = { version = "2.3.2", features = ["h1-client"] }
+
+# AI and Machine Learning
+async-openai = "0.26.0"
+
+# Templates and Rendering
+handlebars = "6.2.0"
+
+# Randomization
+rand = "0.8"
+faker_rand = "0.1.1"
+
+# Low-Level Utilities
+bytes = "1.9.0"
+memmap2 = "0.9.5"
+base64 = "0.22.1"
+
+# Caching
+cached = "0.54.0"
+
+# Streaming
+tokio-stream = "0.1.17"
+
+# Development Tools
+include_dir = "0.7.4"
+rexiv2 = "0.10.0"
+
+# WASM
+wasm-bindgen = "0.2.78"
+
+# Time
+time = { version = "0.3", features = ["macros", "formatting"] }
 
 [dev-dependencies]
-tracing-test = "0.2"
-test-log = "0.2"
-mockall = "0.11.3" 
+# Testing Frameworks and Mocking
+tracing-test = "0.2.5"
+test-log = "0.2.16"
+mockall = "0.13.1"

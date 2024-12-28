@@ -5,6 +5,7 @@ use handlebars::RenderError;
 use handlebars::TemplateError;
 use surrealdb::Error as SurrealError;
 use axum::extract::multipart::MultipartError;
+use crate::backend::f_ai_database::LogFormat::Json;
 use aws_sdk_s3::{
     primitives::ByteStreamError,
     error::SdkError,
@@ -18,11 +19,15 @@ use tokio::sync::mpsc::error::SendError;
 use axum::response::{IntoResponse, Response};
 use axum::http::StatusCode;
 use lettre::address::AddressError;
+use config::ConfigError;
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("Configuration error: {0}")]
+    Configuration(String),
+    
     #[error("Storage error: {0}")]
     Storage(#[from] StorageError),
     
@@ -36,13 +41,13 @@ pub enum AppError {
     Database(#[from] SurrealError),
     
     #[error("Email error: {0}")]
-    Email(#[from] LettreError),
+    Email(String),
     
     #[error("SMTP error: {0}")]
     Smtp(#[from] SmtpError),
     
     #[error("Template error: {0}")]
-    Template(#[from] RenderError),
+    Template(String),
     
     #[error("Validation error: {0}")]
     Validation(String),
@@ -157,6 +162,12 @@ impl From<TemplateError> for AppError {
     }
 }
 
+impl From<ConfigError> for AppError {
+    fn from(err: ConfigError) -> Self {
+        AppError::Configuration(err.to_string())
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum StorageError {
     #[error("Upload failed: {0}")]
@@ -174,6 +185,7 @@ pub enum StorageError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = match self {
+            AppError::Configuration(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
@@ -191,5 +203,24 @@ impl IntoResponse for AppError {
         };
 
         (status, self.to_string()).into_response()
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("database error")]
+    Db,
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(self.to_string())).into_response()
+    }
+}
+
+impl From<surrealdb::Error> for Error {
+    fn from(error: surrealdb::Error) -> Self {
+        eprintln!("{error}");
+        Self::Db
     }
 } 

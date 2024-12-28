@@ -1,4 +1,5 @@
-use surrealdb::{Surreal, engine::remote::ws::Client};
+use surrealdb::Surreal;
+use surrealdb::engine::remote::ws::Client;
 use std::sync::Arc;
 use crate::backend::common::error::error::Result;
 

@@ -2,7 +2,7 @@ use tokio::sync::Semaphore;
 use std::sync::Arc;
 use crate::backend::common::error::error::{Result, AppError};
 use tracing::info;
-use super::resource_types::SemaphorePermit;
+use crate::backend::f_ai_core::SemaphorePermit;
 
 #[derive(Debug)]
 pub struct ResourceConfig {
@@ -34,24 +34,24 @@ impl ResourceManager {
     pub async fn acquire_upload(&self) -> Result<SemaphorePermit> {
         let permit = self.upload_semaphore.acquire().await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(SemaphorePermit { _permit: permit })
+        Ok(SemaphorePermit::new(permit))
     }
 
     pub async fn acquire_processing(&self) -> Result<SemaphorePermit> {
         let permit = self.processing_semaphore.acquire().await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(SemaphorePermit { _permit: permit })
+        Ok(SemaphorePermit::new(permit))
     }
 
     pub async fn acquire_search(&self) -> Result<SemaphorePermit> {
         let permit = self.search_semaphore.acquire().await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(SemaphorePermit { _permit: permit })
+        Ok(SemaphorePermit::new(permit))
     }
 
     pub async fn acquire_embedding(&self) -> Result<SemaphorePermit> {
         let permit = self.embedding_semaphore.acquire().await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(SemaphorePermit { _permit: permit })
+        Ok(SemaphorePermit::new(permit))
     }
 } 

@@ -17,9 +17,17 @@ use crate::{
             events::EventBus,
             resource_manager::ResourceManager,
             cache::Cache,
+            voice_agent::VoiceAgentManager,
+            listing_manager::ListingManager,
         },
-        f_ai_database::DatabaseManager,
-        image_processor::ImageProcessor,
+        f_ai_database::{
+            DatabaseManager,
+            listing_model::ListingService,
+        },
+        image_processor::{
+            ImageProcessor,
+            batch_processor::BatchProcessor,
+        },
         key_logic_auth::{
             KeyService,
             email_service::EmailService,
@@ -30,8 +38,19 @@ use crate::{
             LLMClient,
             EmbeddingService,
         },
-        monitoring::metrics::Metrics,
-        trans_storage::b2_storage::B2Storage,
+        monitoring::{
+            metrics::Metrics,
+            audit::AuditLogger,
+        },
+        trans_storage::{
+            b2_storage::B2Storage,
+            metadata::XmpProcessor,
+        },
+        voice_agent::{
+            AgentInterviewService,
+            QuestionnaireManager,
+            InterviewState,
+        },
     },
     Config,
     create_router,
@@ -46,20 +65,73 @@ async fn main() -> anyhow::Result<()> {
     // Load configuration
     let config = Config::new()?;
     
-    // Initialize state
-    let state = AppState::new(config).await?;
+    // Initialize core services
+    let db_manager = DatabaseManager::new(&config).await?;
+    let listing_service = ListingService::new(db_manager.clone());
+    let email_service = EmailService::new(&config)?;
+    let key_service = KeyService::new(db_manager.clone(), email_service.clone());
+    
+    // Initialize image processing pipeline
+    let image_processor = ImageProcessor::new(&config);
+    let batch_processor = BatchProcessor::new(
+        image_processor.clone(),
+        db_manager.clone(),
+        B2Storage::new(&config)?,
+    );
+    
+    // Initialize AI services
+    let llm_client = LLMClient::new(&config);
+    let embedding_service = EmbeddingService::new(llm_client.clone());
+    let voice_agent = VoiceAgentManager::new(
+        llm_client.clone(),
+        listing_service.clone(),
+        key_service.clone(),
+    );
+    
+    // Initialize state management
+    let event_bus = EventBus::new();
+    let audit_logger = AuditLogger::new(db_manager.clone());
+    
+    // Initialize voice agent interview components
+    let questionnaire_manager = QuestionnaireManager::new(db_manager.clone())?;
+    let interview_service = AgentInterviewService::new(
+        questionnaire_manager,
+        listing_service.clone(),
+        key_service.clone(),
+        email_service.clone(),
+    );
+    
+    // Build AppState with all components
+    let state = AppState::new(
+        config.clone(),
+        db_manager,
+        voice_agent,
+        batch_processor,
+        key_service,
+        event_bus,
+        audit_logger,
+        interview_service,
+    ).await?;
     
     // Build router with all components
     let app = Router::new()
-        // API routes
+        // Pipeline 1: Voice Agent Interview Flow
+        .merge(api::voice::router())
+        .nest("/interview", api::voice::interview::router())
         .merge(api::listings::router())
-        .merge(api::images::router())
         .merge(api::keys::router())
+        
+        // Pipeline 2: Image Upload and Processing
+        .merge(api::images::router())
+        .merge(api::batch::router())
+        .merge(api::location::router())
+        
+        // Utility routes
         .merge(api::health::router())
         .merge(api::metrics::router())
         
         // Add state and middleware
-        .layer(Extension(state))
+        .layer(Extension(Arc::new(state)))
         .layer(key_auth)
         .layer(RateLimitLayer::new(100, Duration::from_secs(60)))
         .layer(CorsLayer::permissive());

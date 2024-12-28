@@ -5,6 +5,7 @@ use tracing::{info, warn, instrument};
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
 use rexiv2::Metadata as XmpMetadata;
+use photon_rs::{PhotonImage, ColourSpaces, Conv, Effects, Filters, Helpers, Multiple, Native, Text, Channels, Transform};
 
 use crate::backend::common::{
     error::error::{Result, AppError, ImageError},

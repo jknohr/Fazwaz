@@ -2,6 +2,7 @@ use serde::Deserialize;
 use anyhow::Result;
 use tracing_subscriber;
 use tracing_subscriber::fmt::time::UtcTime;
+use surrealdb::opt::auth::Root;
 
 
 
@@ -10,15 +11,15 @@ pub struct DatabaseConfig {
     pub url: String,
     pub namespace: String,
     pub database: String,
-    username: Option<String>,
-    pub password: Option<String>,
+    pub username: String,
+    pub password: String,
 }
 
 impl DatabaseConfig {
-    pub fn get_credentials(&self) -> surrealdb::opt::auth::Root {
-        surrealdb::opt::auth::Root {
-            username: self.username.as_deref().unwrap_or("root"),
-            password: self.password.as_deref().unwrap_or("root"),
+    pub fn get_credentials(&self) -> Root<'_> {
+        Root {
+            username: &self.username,
+            password: &self.password,
         }
     }
 }
@@ -42,9 +43,13 @@ pub fn init_logging(config: &LoggingConfig) -> Result<()> {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&config.level));
 
+    let timer = UtcTime::new(time::macros::format_description!(
+        "[year]-[month]-[day]T[hour]:[minute]:[second]Z"
+    ));
+
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(env_filter)
-        .with_timer(UtcTime::rfc_3339())
+        .with_timer(timer)
         .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
         .with_target(true)
         .with_thread_ids(true)
