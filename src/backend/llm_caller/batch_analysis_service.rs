@@ -5,6 +5,7 @@ use async_openai::{
         CreateChatCompletionRequest,
         ChatCompletionRequestMessage,
         ChatCompletionRequestSystemMessage,
+        ChatCompletionRequestSystemMessageContent,
         ChatCompletionRequestUserMessage,
         ChatCompletionRequestUserMessageContent,
     },
@@ -126,13 +127,13 @@ impl BatchAnalysisService {
                 ChatCompletionRequestMessage::System(
                     ChatCompletionRequestSystemMessage {
                         role: async_openai::types::Role::System,
-                        content: Some(self.prompt.clone()),
+                        content: ChatCompletionRequestSystemMessageContent::Text(self.prompt.clone()),
                         name: None,
                     }
                 ),
                 ChatCompletionRequestMessage::User(
                     ChatCompletionRequestUserMessage {
-                        role: Some("user".to_string()),
+                        role: async_openai::types::Role::User,
                         content: Some(ChatCompletionRequestUserMessageContent::Text(
                             format!("Analyze this image: {}", filename)
                         )),

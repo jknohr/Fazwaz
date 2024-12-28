@@ -122,6 +122,40 @@ impl Listing {
         self.updated_at = Utc::now();
         Ok(())
     }
+
+    pub fn create_with_api_key(
+        email: String,
+        fullname: String,
+        phone: String,
+        country_details: CountryDetails,
+    ) -> Result<(Self, String)> { // Returns (Listing, APIKey)
+        let listing_id = ListingId::new(uuid7::uuid7().to_string())?;
+        let api_key = generate_api_key()?; // We'll implement this
+        
+        let listing = Self {
+            id: uuid7::uuid7().to_string(),
+            listing_id,
+            api_key: api_key.clone(),
+            email,
+            fullname,
+            phone,
+            country_details,
+            status: ListingStatus::Draft,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            // Other fields initialized as None or default
+            ..Default::default()
+        };
+
+        Ok((listing, api_key))
+    }
+
+    fn generate_api_key() -> Result<String> {
+        // Generate a secure random API key
+        // Format: "LST_" prefix + 32 random chars
+        let random_part = uuid7::uuid7().to_string().replace("-", "");
+        Ok(format!("LST_{}", random_part))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]

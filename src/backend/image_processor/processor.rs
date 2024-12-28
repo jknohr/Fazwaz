@@ -5,7 +5,6 @@ use tracing::{info, warn, instrument};
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
 use rexiv2::Metadata as XmpMetadata;
-use photon_rs::{PhotonImage, ColourSpaces, Conv, Effects, Filters, Helpers, Multiple, Native, Text, Channels, Transform};
 
 use crate::backend::common::{
     error::error::{Result, AppError, ImageError},
@@ -124,24 +123,8 @@ impl ImageProcessor {
         // Use photon_rs for the actual processing, using our config values
         let mut photo = PhotonImage::from_dynamic(img);
         
-        // Apply settings from config
-        photon_rs::filters::sharpen(&mut photo, self.enhancement_config.sharpening_sigma);
-        photon_rs::adjust::brightness(&mut photo, self.enhancement_config.brightness_adjustment);
-        photon_rs::adjust::correct_contrast(&mut photo, self.enhancement_config.contrast_boost);
-        
-        // Handle shadow recovery
-        if self.enhancement_config.shadow_recovery > 0.0 {
-            photon_rs::adjust::adjust_channel_intensity(
-                &mut photo,
-                photon_rs::channels::ChannelIndex::Blue, 
-                self.enhancement_config.shadow_recovery
-            );
-        }
-
-        // And so on for other parameters...
-
-        Ok(photo.to_dynamic())
-    }
+     
+       
 
     // Add method to switch presets based on scene type
     pub fn set_enhancement_preset(&mut self, preset: ImagePreset) {

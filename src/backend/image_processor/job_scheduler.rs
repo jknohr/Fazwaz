@@ -2,9 +2,10 @@ use std::sync::Arc;
 use tokio::time::{Duration, interval};
 use tracing::{info, warn};
 
-use crate::backend::common::{Result, AppError};
-use crate::{
-    llm_caller::image_embedding::OpenAIEmbedding,
+use crate::backend::common::error::error::{Result, AppError};
+use crate::backend::image_processor::{
+    analysis_pipeline::ImageAnalysisPipeline,
+    processor::ImageProcessor,
     trans_storage::file_manager::FileManager,
 };
 
