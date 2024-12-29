@@ -59,7 +59,7 @@ pub async fn check_health(
     let checks = vec![
         ComponentHealth {
             name: "database".to_string(),
-            status: state.db.check_health().await?,
+            status: state.check_database_health().await?,
             latency_ms: 0,
             last_check: chrono::Utc::now(),
             details: None,

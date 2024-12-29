@@ -23,6 +23,8 @@ use crate::{
         f_ai_database::{
             DatabaseManager,
             listing_model::ListingService,
+            image_service::ImageService,
+            image_model::ImageModel,
         },
         image_processor::{
             ImageProcessor,
@@ -67,18 +69,31 @@ async fn main() -> anyhow::Result<()> {
     
     // Initialize core services
     let db_manager = DatabaseManager::new(&config).await?;
+    
+    // Initialize storage and metrics
+    let storage = Arc::new(B2Storage::new(&config)?);
+    let metrics = Arc::new(Metrics::new());
+
+    // Initialize job scheduler
+    
+    let job_scheduler = ImageJobScheduler::new(storage.clone(), metrics.clone());
+    job_scheduler.start().await?;
+
+    // Pipeline 1: Voice Agent and API Key Generation
     let listing_service = ListingService::new(db_manager.clone());
     let email_service = EmailService::new(&config)?;
     let key_service = KeyService::new(db_manager.clone(), email_service.clone());
     
-    // Initialize image processing pipeline
+    // Pipeline 2: Image Processing
+    let image_model = Arc::new(ImageModel::new(db_manager.clone(), storage.clone()));
+    let image_service = Arc::new(ImageService::new(image_model));
     let image_processor = ImageProcessor::new(&config);
     let batch_processor = BatchProcessor::new(
-        image_processor.clone(),
-        db_manager.clone(),
-        B2Storage::new(&config)?,
+        image_processor,
+        image_service.clone(),
+        storage.clone(),
     );
-    
+
     // Initialize AI services
     let llm_client = LLMClient::new(&config);
     let embedding_service = EmbeddingService::new(llm_client.clone());
@@ -103,15 +118,14 @@ async fn main() -> anyhow::Result<()> {
     
     // Build AppState with all components
     let state = AppState::new(
-        config.clone(),
         db_manager,
-        voice_agent,
-        batch_processor,
+        storage,
+        metrics,
+        image_service,
         key_service,
-        event_bus,
-        audit_logger,
-        interview_service,
-    ).await?;
+        email_service,
+        batch_processor,
+    )?;
     
     // Build router with all components
     let app = Router::new()

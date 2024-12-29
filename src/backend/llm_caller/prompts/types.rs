@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ImageAnalysis {
     pub scene_type: String,
-    pub room_type: Option<String>,
+    pub content_type: Option<String>,
     pub quality_score: f32,
     pub features: Vec<String>,
     pub condition: ConditionAnalysis,

@@ -14,7 +14,7 @@ use crate::backend::{
     f_ai_core::state::AppState,
     common::{
         types::{
-            image_types::{
+            image_context::{
                 Image,
                 ImageUploadOptions,
                 ImageSearchQuery, 

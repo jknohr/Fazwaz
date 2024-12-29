@@ -1,13 +1,13 @@
-use std::cmp::{min, max};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct Rgb {
     pub r: u8,
     pub g: u8,
     pub b: u8,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct Hsl {
     pub h: f32,  // 0-360
     pub s: f32,  // 0-100
@@ -48,6 +48,24 @@ impl Rgb {
             h: h * 360.0,
             s: s * 100.0,
             l: l * 100.0,
+        }
+    }
+
+    pub fn adjust_white_balance(&mut self, temp: f32, tint: f32) {
+        // Temperature: negative = cooler (blue), positive = warmer (yellow)
+        if temp < 0.0 {
+            self.b = (self.b as f32 * (1.0 - temp)).min(255.0) as u8;
+            self.r = (self.r as f32 * (1.0 + temp)).max(0.0) as u8;
+        } else {
+            self.r = (self.r as f32 * (1.0 + temp)).min(255.0) as u8;
+            self.b = (self.b as f32 * (1.0 - temp)).max(0.0) as u8;
+        }
+
+        // Tint: negative = green, positive = magenta
+        if tint < 0.0 {
+            self.g = (self.g as f32 * (1.0 - tint)).min(255.0) as u8;
+        } else {
+            self.g = (self.g as f32 * (1.0 + tint)).max(0.0) as u8;
         }
     }
 }

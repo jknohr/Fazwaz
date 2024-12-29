@@ -1,7 +1,21 @@
-Hi {{name}},
+Welcome to Neural Reef Real Estate
 
-Here is your access key: {{key}}
+Dear {{full_name}},
 
-This key is valid for accessing our services. Please keep it secure and do not share it.
+Thank you for registering your property. Here are your access details:
 
-© {{year}} Neural Reef 
+API Key: {{api_key}}
+Listing ID: {{listing_id}}
+
+To upload your property photos:
+1. Visit: {{upload_url}}
+2. Enter your API key
+3. Upload high-quality photos (1080p to 4K)
+4. Set the precise location pin for your property
+
+Photo requirements:
+- Resolution: Between 1080p and 4K
+- Format: WebP (will be automatically converted)
+- Categories: Interior, Exterior, Floor Plans, etc.
+
+Need help? Contact us at support@neuralreef.com 

@@ -1,9 +1,26 @@
 <!DOCTYPE html>
 <html>
 <body>
-    <h2>Hi {{name}},</h2>
-    <p>Here is your access key: <strong>{{key}}</strong></p>
-    <p>This key is valid for accessing our services. Please keep it secure and do not share it.</p>
-    <footer>© {{year}} Neural Reef</footer>
+    <h2>Welcome to Neural Reef Real Estate</h2>
+    <p>Dear {{full_name}},</p>
+    <p>Thank you for registering your property. Here are your access details:</p>
+    <ul>
+        <li>API Key: <strong>{{api_key}}</strong></li>
+        <li>Listing ID: <strong>{{listing_id}}</strong></li>
+    </ul>
+    <p>To upload your property photos, please:</p>
+    <ol>
+        <li>Visit: <a href="{{upload_url}}">{{upload_url}}</a></li>
+        <li>Enter your API key</li>
+        <li>Upload high-quality photos (1080p to 4K)</li>
+        <li>Set the precise location pin for your property</li>
+    </ol>
+    <p>Photo requirements:</p>
+    <ul>
+        <li>Resolution: Between 1080p and 4K</li>
+        <li>Format: WebP (will be automatically converted)</li>
+        <li>Categories: Interior, Exterior, Floor Plans, etc.</li>
+    </ul>
+    <p>Need help? Contact us at support@neuralreef.com</p>
 </body>
 </html> 

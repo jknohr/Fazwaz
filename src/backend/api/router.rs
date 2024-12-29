@@ -10,6 +10,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/health", get(health::check_health))
         .route("/ready", get(health::check_readiness))
         .route("/live", get(health::check_liveness))
+        .route("/agent/listing", post(listing::create_agent_listing))
         .route("/listings", post(listing::create_listing))
         .route("/listings/:id", get(listing::get_listing))
         .route("/listings/:id", patch(listing::update_listing))

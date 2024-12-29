@@ -4,6 +4,7 @@ pub mod key;
 pub mod listing;
 pub mod metrics;
 pub mod search;
+pub mod agent_listing_listener;
 mod router;
 
 pub use router::create_router;

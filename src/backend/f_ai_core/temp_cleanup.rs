@@ -10,25 +10,25 @@ pub async fn start_temp_file_cleanup(state: Arc<AppState>) {
             interval.tick().await;
             if let Err(e) = cleanup_expired_temp_files(&state).await {
                 error!("Failed to cleanup temp files: {}", e);
-                state.metrics.cleanup_failures.inc();
+                state.increment_cleanup_failures(1);
             }
         }
     });
 }
 
 async fn cleanup_expired_temp_files(state: &AppState) -> Result<()> {
-    let timer = state.metrics.cleanup_duration.start_timer();
+    let timer = state.start_cleanup_timer();
     let cutoff = chrono::Utc::now() - chrono::Duration::hours(1);
     
-    let expired_files = state.db.get_expired_temp_files(cutoff).await?;
+    let expired_files = state.get_expired_temp_files_with_metrics(cutoff).await?;
     let mut deleted = 0;
     let mut failed = 0;
 
     for file in expired_files {
-        match state.temp_storage.delete(&file.path).await {
+        match state.delete_temp_file(&file.path).await {
             Ok(_) => {
                 deleted += 1;
-                state.db.mark_temp_file_deleted(&file.id).await?;
+                state.mark_temp_file_deleted_with_metrics(&file.id).await?;
             }
             Err(e) => {
                 error!("Failed to delete temp file {}: {}", file.path, e);
@@ -38,8 +38,8 @@ async fn cleanup_expired_temp_files(state: &AppState) -> Result<()> {
     }
 
     info!("Temp file cleanup: {} deleted, {} failed", deleted, failed);
-    state.metrics.files_cleaned.inc_by(deleted);
-    state.metrics.cleanup_failures.inc_by(failed);
+    state.increment_files_cleaned(deleted);
+    state.increment_cleanup_failures(failed);
     timer.observe_duration();
 
     Ok(())

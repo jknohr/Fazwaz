@@ -29,3 +29,8 @@ pub struct KeyResponse {
 pub struct MessageResponse {
     pub message: String,
 } 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuthToken {
+    pub token: String,
+    pub expires_at: DateTime<Utc>,
+}

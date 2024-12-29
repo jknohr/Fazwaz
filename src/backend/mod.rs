@@ -8,5 +8,6 @@ pub mod key_logic_auth;
 pub mod image_processor;
 pub mod monitoring;
 pub mod email;
+pub mod websocket;
 
 

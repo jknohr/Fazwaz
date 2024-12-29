@@ -29,7 +29,7 @@ pub enum AppError {
     Configuration(String),
     
     #[error("Storage error: {0}")]
-    Storage(#[from] StorageError),
+    Storage(String),
     
     #[error("Image error: {0}")]
     ImageError(#[from] ImageError),
@@ -38,7 +38,7 @@ pub enum AppError {
     Internal(String),
     
     #[error("Database error: {0}")]
-    Database(#[from] SurrealError),
+    Database(String),
     
     #[error("Email error: {0}")]
     Email(String),
@@ -66,6 +66,15 @@ pub enum AppError {
     
     #[error("Unauthorized")]
     Unauthorized,
+    
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
+    #[error("Image validation error: {0}")]
+    ImageValidation(#[from] ImageValidationError),
+
+    #[error("Image processing error: {0}")]
+    ImageProcessing(String),
 }
 
 #[derive(Debug, Error)]
@@ -87,6 +96,24 @@ pub enum ImageError {
 
     #[error("Image too large: {width}x{height} (max: {max_width}x{max_height})")]
     TooLarge { width: u32, height: u32, max_width: u32, max_height: u32 },
+
+    #[error("Failed to convert image: {0}")]
+    ConversionError(String),
+}
+
+#[derive(Debug, Error)]
+pub enum ImageValidationError {
+    #[error("Image dimensions must be between 1080p and 4K, got {width}x{height}")]
+    InvalidDimensions {
+        width: u32,
+        height: u32,
+    },
+
+    #[error("Invalid image format: {0}")]
+    InvalidFormat(String),
+
+    #[error("Processing error: {0}")]
+    ProcessingError(String),
 }
 
 // AWS S3 error conversions
@@ -168,6 +195,18 @@ impl From<ConfigError> for AppError {
     }
 }
 
+impl From<image::ImageError> for AppError {
+    fn from(err: image::ImageError) -> Self {
+        AppError::ImageError(ImageError::LoadError(err.to_string()))
+    }
+}
+
+impl From<rexiv2::Error> for AppError {
+    fn from(err: rexiv2::Error) -> Self {
+        AppError::ImageError(ImageError::ConversionError(err.to_string()))
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum StorageError {
     #[error("Upload failed: {0}")]
@@ -200,6 +239,9 @@ impl IntoResponse for AppError {
             AppError::Email(_) |
             AppError::Smtp(_) |
             AppError::Template(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::InvalidInput(_) => StatusCode::BAD_REQUEST,
+            AppError::ImageValidation(_) => StatusCode::BAD_REQUEST,
+            AppError::ImageProcessing(_) => StatusCode::BAD_REQUEST,
         };
 
         (status, self.to_string()).into_response()

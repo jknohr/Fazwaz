@@ -1,316 +1,429 @@
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use uuid7;
 use chrono::{DateTime, Utc};
 use tracing::{info, warn, instrument};
-use crate::backend::common::error::error::{Result, AppError};
+use crate::backend::{
+    common::{
+        error::error::{Result, AppError},
+        types::{
+            listing_types::{Listing, AgentListingRequest, ListingStatus, GpsCoordinates, LocationDetails},
+            batch_types::BatchStatus,
+            id_types::ListingId,
+        },
+    },
+    f_ai_database::database::DatabaseManager,
+    monitoring::events::{EventLogger, SystemEvent, Severity},
+    f_ai_database::location_schema::{Location, LocationProperties},
+};
 
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]
-pub struct ListingId(String);
-
-impl ListingId {
-    #[instrument]
-    pub fn new(value: String) -> Result<Self> {
-        if Self::validate(&value) {
-            info!(id = %value, "Created new ListingId");
-            Ok(Self(value))
-        } else {
-            warn!(id = %value, "Invalid listing ID format");
-            Err(AppError::Validation("Invalid listing ID format".into()))
-        }
-    }
-
-    pub fn validate(value: &str) -> bool {
-        !value.is_empty() && value.len() <= 50 
-            && value.chars().all(|c| c.is_alphanumeric() || c == '-')
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
+// Add new ListingService for handling agent requests
+pub struct ListingService {
+    db: Arc<DatabaseManager>,
+    event_logger: Arc<EventLogger>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Listing {
-    pub id: String,  // Internal ID (UUID7)
-    pub listing_id: ListingId,
-    pub title: String,
-    pub description: String,
-    pub price: f64,
-    pub bedrooms: u32,
-    pub bathrooms: u32,
-    pub square_meter: u32,
-    pub amenities: Vec<Amenity>,
-    pub country: String,
-    pub district: String,
-    pub subdistrict: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub status: ListingStatus,
-}
-
-impl Listing {
-    pub fn builder() -> ListingBuilder {
-        ListingBuilder::default()
-    }
-    
-    fn validate_price(price: f64) -> Result<()> {
-        if price < 0.0 {
-            return Err(AppError::Validation("Price cannot be negative".into()));
-        }
-        Ok(())
+impl ListingService {
+    pub fn new(db: Arc<DatabaseManager>, event_logger: Arc<EventLogger>) -> Self {
+        Self { db, event_logger }
     }
 
-    fn validate_rooms(rooms: u32) -> Result<()> {
-        if rooms > 100 {
-            return Err(AppError::Validation("Invalid number of rooms".into()));
-        }
-        Ok(())
-    }
-
-    fn validate_square_meter(sqft: u32) -> Result<()> {
-        if sqft == 0 || sqft > 100_000 {
-            return Err(AppError::Validation("Invalid square footage".into()));
-        }
-        Ok(())
-    }
-
-    fn validate_title(title: &str) -> Result<()> {
-        if title.is_empty() || title.len() > 200 {
-            return Err(AppError::Validation("Title must be between 1 and 200 characters".into()));
-        }
-        Ok(())
-    }
-
-    fn validate_description(description: &str) -> Result<()> {
-        if description.len() > 2000 {
-            return Err(AppError::Validation("Description cannot exceed 2000 characters".into()));
-        }
-        Ok(())
-    }
-    
     #[instrument(skip(self))]
-    pub fn update_status(&mut self, new_status: ListingStatus) -> Result<()> {
-        info!(
-            listing_id = %self.listing_id.as_str(),
-            from = ?self.status,
-            to = ?new_status,
-            "Attempting status transition"
-        );
-
-        match (&self.status, new_status) {
-            (ListingStatus::Draft, ListingStatus::Active) => Ok(()),
-            (ListingStatus::Active, ListingStatus::Inactive) => Ok(()),
-            (ListingStatus::Inactive, ListingStatus::Active) => Ok(()),
-            (_, ListingStatus::Archived) => Ok(()),
-            _ => {
-                warn!(
-                    listing_id = %self.listing_id.as_str(),
-                    from = ?self.status,
-                    to = ?new_status,
-                    "Invalid status transition"
-                );
-                Err(AppError::Validation("Invalid status transition".into()))
-            }
-        }?;
-        
-        info!(
-            listing_id = %self.listing_id.as_str(),
-            new_status = ?new_status,
-            "Status updated"
-        );
-        self.status = new_status;
-        self.updated_at = Utc::now();
-        Ok(())
-    }
-
-    pub fn create_with_api_key(
-        email: String,
-        fullname: String,
-        phone: String,
-        country_details: CountryDetails,
-    ) -> Result<(Self, String)> { // Returns (Listing, APIKey)
-        let listing_id = ListingId::new(uuid7::uuid7().to_string())?;
-        let api_key = generate_api_key()?; // We'll implement this
-        
-        let listing = Self {
+    pub async fn create_initial_listing(&self, request: AgentListingRequest) -> Result<Listing> {
+        let listing = Listing {
+            // Core identification
             id: uuid7::uuid7().to_string(),
-            listing_id,
-            api_key: api_key.clone(),
-            email,
-            fullname,
-            phone,
-            country_details,
-            status: ListingStatus::Draft,
+            listing_id: ListingId::new(uuid7::uuid7().to_string())?,
+            api_key: String::new(), // Will be set by key service
+
+            // Agent/Contact information
+            email: request.email,
+            fullname: request.fullname,
+            phone: request.phone_number,
+
+            // Property details (initialized as empty/None)
+            title: String::new(),
+            description: String::new(),
+            property_type: None,
+            country_details: None,
+            gps_pin: None,
+            prices: None,
+            dimensions: None,
+            amenities: Vec::new(),
+
+            // Processing status
+            status: ListingStatus::Open,
+            batch_status: None,
+            image_batch_ids: Vec::new(),
+
+            // Timestamps
             created_at: Utc::now(),
             updated_at: Utc::now(),
-            // Other fields initialized as None or default
-            ..Default::default()
         };
 
-        Ok((listing, api_key))
+        // Store in database with all fields
+        self.db.client().query(
+            "CREATE listings CONTENT $listing RETURN AFTER"
+        )
+        .bind(("listing", &listing))
+        .await?
+        .take(0)?
+        .ok_or_else(|| AppError::Database("Failed to create listing".into()))
     }
 
-    fn generate_api_key() -> Result<String> {
-        // Generate a secure random API key
-        // Format: "LST_" prefix + 32 random chars
-        let random_part = uuid7::uuid7().to_string().replace("-", "");
-        Ok(format!("LST_{}", random_part))
-    }
-}
+    #[instrument(skip(self))]
+    pub async fn get_listing(&self, listing_id: &ListingId) -> Result<Option<Listing>> {
+        let result = self.db.client().query(
+            "SELECT * FROM listings WHERE listing_id = $listing_id"
+        )
+        .bind(("listing_id", listing_id.as_str()))
+        .await?;
 
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub enum ListingStatus {
-    #[default]
-    Draft,
-    Active,
-    Inactive,
-    Archived,
-} 
-
-#[derive(Default)]
-pub struct ListingBuilder {
-    listing_id: Option<ListingId>,
-    title: Option<String>,
-    description: Option<String>,
-    price: Option<f64>,
-    bedrooms: Option<u32>,
-    bathrooms: Option<u32>,
-    square_meter: Option<u32>,
-    amenities: Vec<Amenity>,
-    country: Option<String>,
-    district: Option<String>,
-    subdistrict: Option<String>,
-    status: Option<ListingStatus>,
-}
-
-impl ListingBuilder {
-    pub fn listing_id(mut self, id: ListingId) -> Self {
-        self.listing_id = Some(id);
-        self
-    }
-    
-    pub fn title(mut self, title: String) -> Self {
-        self.title = Some(title);
-        self
-    }
-    
-    pub fn description(mut self, description: String) -> Self {
-        self.description = Some(description);
-        self
+        Ok(result.take(0)?)
     }
 
-    pub fn price(mut self, price: f64) -> Self {
-        self.price = Some(price);
-        self
-    }
-
-    pub fn bedrooms(mut self, bedrooms: u32) -> Self {
-        self.bedrooms = Some(bedrooms);
-        self
-    }
-
-    pub fn bathrooms(mut self, bathrooms: u32) -> Self {
-        self.bathrooms = Some(bathrooms);
-        self
-    }
-
-    pub fn square_meter(mut self, square_meter: u32) -> Self {
-        self.square_meter = Some(square_meter);
-        self
-    }
-
-    pub fn amenities(mut self, amenities: Vec<Amenity>) -> Self {
-        self.amenities = amenities;
-        self
-    }
-
-    pub fn status(mut self, status: ListingStatus) -> Self {
-        self.status = Some(status);
-        self
-    }
-
-    pub fn country(mut self, country: String) -> Self {
-        self.country = Some(country);
-        self
-    }
-
-    pub fn district(mut self, district: String) -> Self {
-        self.district = Some(district);
-        self
-    }
-
-    pub fn subdistrict(mut self, subdistrict: String) -> Self {
-        self.subdistrict = Some(subdistrict);
-        self
-    }
-
-    pub fn build(self) -> Result<Listing> {
-        let listing_id = self.listing_id.ok_or_else(|| 
-            AppError::Validation("Listing ID is required".into()))?;
-            
-        let title = self.title.ok_or_else(|| 
-            AppError::Validation("Title is required".into()))?;
-        Listing::validate_title(&title)?;
-            
-        let description = self.description.unwrap_or_default();
-        Listing::validate_description(&description)?;
-
-        let price = self.price.ok_or_else(|| 
-            AppError::Validation("Price is required".into()))?;
-        Listing::validate_price(price)?;
-
-        let bedrooms = self.bedrooms.unwrap_or(0);
-        Listing::validate_rooms(bedrooms)?;
-
-        let bathrooms = self.bathrooms.unwrap_or(0);
-        Listing::validate_rooms(bathrooms)?;
-
-        let square_meter = self.square_meter.unwrap_or(0);
-        Listing::validate_square_meter(square_meter)?;
+    #[instrument(skip(self))]
+    pub async fn update_status(&self, listing_id: &ListingId, new_status: ListingStatus) -> Result<()> {
+        let now = Utc::now();
         
-        Ok(Listing {
-            id: uuid7::uuid7().to_string(),
-            listing_id,
-            title,
-            description,
-            price,
-            bedrooms,
-            bathrooms,
-            square_meter,
-            amenities: self.amenities,
-            country: self.country.unwrap_or_default(),
-            district: self.district.unwrap_or_default(),
-            subdistrict: self.subdistrict.unwrap_or_default(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            status: self.status.unwrap_or(ListingStatus::Draft),
-        })
-    }
-} 
+        self.db.client().query(
+            "UPDATE listings 
+            SET status = $status, updated_at = $updated_at 
+            WHERE listing_id = $listing_id"
+        )
+        .bind(("status", new_status))
+        .bind(("updated_at", now))
+        .bind(("listing_id", listing_id.as_str()))
+        .await?;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub enum Amenity {
-    Pool,
-    Gym,
-    Parking,
-    AirConditioning,
-    Furnished,
-    PetFriendly,
-    Laundry,
-    Other(String),
+        self.event_logger.log_event(SystemEvent {
+            event_type: "listing.status_updated".to_string(),
+            severity: Severity::Info,
+            message: format!("Updated listing {} status to {:?}", listing_id.as_str(), new_status),
+            metadata: None,
+            timestamp: now,
+        }).await?;
+
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    pub async fn update_batch_status(&self, listing_id: &ListingId, batch_status: BatchStatus) -> Result<()> {
+        let now = Utc::now();
+
+        self.db.client().query(
+            "UPDATE listings 
+            SET batch_status = $batch_status, updated_at = $updated_at 
+            WHERE listing_id = $listing_id"
+        )
+        .bind(("batch_status", batch_status))
+        .bind(("updated_at", now))
+        .bind(("listing_id", listing_id.as_str()))
+        .await?;
+
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    pub async fn add_batch_id(&self, listing_id: &ListingId, batch_id: String) -> Result<()> {
+        self.db.client().query(
+            "UPDATE listings 
+            SET image_batch_ids += $batch_id 
+            WHERE listing_id = $listing_id"
+        )
+        .bind(("batch_id", batch_id))
+        .bind(("listing_id", listing_id.as_str()))
+        .await?;
+
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    pub async fn validate_listing_exists(&self, listing_id: &ListingId) -> Result<bool> {
+        let result = self.db.client().query(
+            "SELECT count() FROM listings WHERE listing_id = $listing_id"
+        )
+        .bind(("listing_id", listing_id.as_str()))
+        .await?;
+
+        Ok(result.take::<i64>(0)? > 0)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn validate_api_key(&self, listing_id: &ListingId, api_key: &str) -> Result<bool> {
+        let result = self.db.client().query(
+            "SELECT count() FROM listings 
+             WHERE listing_id = $listing_id 
+             AND api_key = $api_key"
+        )
+        .bind(("listing_id", listing_id.as_str()))
+        .bind(("api_key", api_key))
+        .await?;
+
+        Ok(result.take::<i64>(0)? > 0)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn get_listing_by_api_key(&self, api_key: &str) -> Result<Option<Listing>> {
+        let result = self.db.client().query(
+            "SELECT * FROM listings WHERE api_key = $api_key"
+        )
+        .bind(("api_key", api_key))
+        .await?;
+
+        Ok(result.take(0)?)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn update_gps_coordinates(&self, listing_id: &ListingId, gps: GpsCoordinates) -> Result<()> {
+        let now = Utc::now();
+
+        self.db.client().query(
+            "UPDATE listings 
+             SET gps_pin = $gps, updated_at = $updated_at 
+             WHERE listing_id = $listing_id"
+        )
+        .bind(("gps", gps))
+        .bind(("updated_at", now))
+        .bind(("listing_id", listing_id.as_str()))
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn update_api_key(&self, listing_id: &str, api_key: &str) -> Result<Listing> {
+        let now = Utc::now();
+        
+        let listing: Option<Listing> = self.db.client().query(
+            "UPDATE listings 
+            SET api_key = $api_key, updated_at = $now 
+            WHERE id = $id 
+            RETURN AFTER"
+        )
+        .bind(("api_key", api_key))
+        .bind(("now", now))
+        .bind(("id", listing_id))
+        .await?
+        .take(0)?;
+
+        listing.ok_or_else(|| AppError::NotFound("Listing not found".into()))
+    }
+
+    #[instrument(skip(self))]
+    pub async fn update_location(&self, listing_id: &ListingId, location: &Location) -> Result<()> {
+        let now = Utc::now();
+        
+        // Create the relationship
+        self.db.client().query(
+            "RELATE $listing_id->listing_location->$location_id 
+             SET created_at = $now"
+        )
+        .bind(("listing_id", listing_id.as_str()))
+        .bind(("location_id", location.id.to_string()))
+        .bind(("now", now))
+        .await?;
+
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    pub async fn get_nearby_listings(&self, coords: &GpsCoordinates, radius_km: f64) -> Result<Vec<Listing>> {
+        let listings: Vec<Listing> = self.db.client().query(
+            "SELECT listings.* FROM listings, location, listing_location 
+             WHERE (listing_location.listing = listings.id 
+             AND listing_location.location = location.id)
+             AND geo::distance(location.coordinates, $coords) <= $radius"
+        )
+        .bind(("coords", [coords.longitude, coords.latitude]))
+        .bind(("radius", radius_km * 1000.0)) // Convert to meters
+        .await?
+        .take(0)?;
+
+        Ok(listings)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn get_listings_by_batch_status(&self, status: BatchStatus) -> Result<Vec<Listing>> {
+        let listings: Vec<Listing> = self.db.client().query(
+            "SELECT * FROM listings 
+             WHERE batch_status = $status 
+             ORDER BY created_at DESC"
+        )
+        .bind(("status", status))
+        .await?
+        .take(0)?;
+
+        Ok(listings)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn get_listings_with_pending_batches(&self) -> Result<Vec<Listing>> {
+        let listings: Vec<Listing> = self.db.client().query(
+            "SELECT listing.* FROM listing 
+             WHERE ->has_batch->batch.status IN ['Pending', 'Processing']
+             ORDER BY listing.updated_at ASC"
+        )
+        .await?
+        .take(0)?;
+
+        Ok(listings)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn get_batch_summary(&self, listing_id: &ListingId) -> Result<BatchSummary> {
+        let summary = self.db.client().query(
+            "SELECT {
+                total: count(->has_batch->batch->contains_image->image),
+                processed: count(->has_batch->batch->contains_image->image WHERE status = 'Processed'),
+                failed: count(->has_batch->batch->contains_image->image WHERE status = 'Failed')
+             } FROM listing 
+             WHERE listing_id = $listing_id"
+        )
+        .bind(("listing_id", listing_id.as_str()))
+        .await?
+        .take::<BatchSummary>(0)?
+        .ok_or_else(|| AppError::NotFound("Listing not found".into()))?;
+
+        Ok(summary)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn initialize_schema(&self) -> Result<()> {
+        let schema = r#"
+            -- Node Tables
+            DEFINE TABLE listing SCHEMAFULL;
+            DEFINE FIELD listing_id ON listing TYPE string ASSERT $value != NONE;
+            DEFINE FIELD title ON listing TYPE string;
+            DEFINE FIELD description ON listing TYPE string;
+            DEFINE FIELD status ON listing TYPE string ASSERT $value != NONE;
+            DEFINE FIELD created_at ON listing TYPE datetime ASSERT $value != NONE;
+            DEFINE FIELD updated_at ON listing TYPE datetime ASSERT $value != NONE;
+
+            -- Edge Tables (using RELATE syntax)
+            DEFINE TABLE has_details SCHEMAFULL;
+            DEFINE FIELD in ON has_details TYPE record<listing>;
+            DEFINE FIELD out ON has_details TYPE record<property_details>;
+            DEFINE FIELD created_at ON has_details TYPE datetime;
+
+            DEFINE TABLE has_batch SCHEMAFULL;
+            DEFINE FIELD in ON has_batch TYPE record<listing>;
+            DEFINE FIELD out ON has_batch TYPE record<batch>;
+            DEFINE FIELD created_at ON has_batch TYPE datetime;
+
+            DEFINE TABLE contains_image SCHEMAFULL;
+            DEFINE FIELD in ON contains_image TYPE record<batch>;
+            DEFINE FIELD out ON contains_image TYPE record<image>;
+            DEFINE FIELD created_at ON contains_image TYPE datetime;
+
+            -- Indexes for graph traversal
+            DEFINE INDEX listing_id_idx ON listing FIELDS listing_id UNIQUE;
+            DEFINE INDEX has_details_idx ON has_details COLUMNS in, out UNIQUE;
+            DEFINE INDEX has_batch_idx ON has_batch COLUMNS in, out UNIQUE;
+            DEFINE INDEX contains_image_idx ON contains_image COLUMNS in, out UNIQUE;
+        "#;
+
+        self.db.execute(schema).await?;
+        Ok(())
+    }
+
+    pub async fn create_listing(&self, listing: &Listing) -> Result<()> {
+        // Begin transaction
+        self.db.query("BEGIN TRANSACTION").await?;
+
+        // 1. Create the listing node
+        let create_listing = r#"
+            LET $listing = CREATE listing SET 
+                listing_id = $listing_id,
+                title = $title,
+                description = $description,
+                status = $status,
+                created_at = time::now(),
+                updated_at = time::now()
+            RETURN $listing.id;
+        "#;
+
+        let listing_id = self.db.execute(create_listing, listing).await?;
+
+        // 2. Create and RELATE property details
+        let relate_details = r#"
+            LET $details = CREATE property_details SET 
+                property_type = $property_type,
+                furnishing = $furnishing,
+                condition = $condition,
+                created_at = time::now();
+            RELATE $listing_id->has_details->$details 
+            SET created_at = time::now();
+        "#;
+
+        self.db.execute(relate_details, listing.details).await?;
+
+        // 3. Create and RELATE price nodes
+        for price in &listing.prices {
+            let relate_price = r#"
+                LET $price = CREATE price SET
+                    amount = $amount,
+                    currency = $currency,
+                    price_type = $price_type,
+                    created_at = time::now();
+                RELATE $listing_id->has_price->$price
+                SET created_at = time::now();
+            "#;
+            self.db.execute(relate_price, price).await?;
+        }
+
+        // 4. Create and RELATE location
+        let relate_location = r#"
+            LET $location = CREATE location SET
+                country = $country,
+                province = $province,
+                district = $district,
+                coordinates = $coordinates,
+                created_at = time::now();
+            RELATE $listing_id->has_location->$location
+            SET created_at = time::now();
+        "#;
+
+        self.db.execute(relate_location, listing.location).await?;
+
+        // 5. Create and RELATE images through batch
+        if let Some(batch) = &listing.batch {
+            let relate_batch = r#"
+                LET $batch = CREATE batch SET
+                    batch_id = $batch_id,
+                    status = $status,
+                    total_images = $total_images,
+                    created_at = time::now();
+                RELATE $listing_id->has_batch->$batch
+                SET created_at = time::now();
+            "#;
+
+            let batch_id = self.db.execute(relate_batch, batch).await?;
+
+            // Relate each image to the batch
+            for image in &batch.images {
+                let relate_image = r#"
+                    LET $image = CREATE image SET
+                        image_id = $image_id,
+                        filename = $filename,
+                        status = $status,
+                        created_at = time::now();
+                    RELATE $batch_id->contains_image->$image
+                    SET created_at = time::now();
+                "#;
+                self.db.execute(relate_image, image).await?;
+            }
+        }
+
+        // Commit transaction
+        self.db.query("COMMIT TRANSACTION").await?;
+
+        Ok(())
+    }
 }
 
-impl Amenity {
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Pool => "Pool",
-            Self::Gym => "Gym",
-            Self::Parking => "Parking",
-            Self::AirConditioning => "Air Conditioning",
-            Self::Furnished => "Furnished",
-            Self::PetFriendly => "Pet Friendly",
-            Self::Laundry => "Laundry",
-            Self::Other(s) => s,
-        }
-    }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BatchSummary {
+    pub total: i64,
+    pub processed: i64,
+    pub failed: i64,
 } 

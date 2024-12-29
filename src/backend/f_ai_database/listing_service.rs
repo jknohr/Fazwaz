@@ -34,7 +34,7 @@ impl ListingService {
     pub async fn get_listing_by_listing_id(&self, id: &ListingId) -> Result<Option<Listing>> {
         let mut response = self.client
             .query("SELECT * FROM listing WHERE listing_id = $id")
-            .bind(("id", id))
+            .bind(("id", id.to_string()))
             .await?;
             
         Ok(response.take(0)?)
@@ -44,7 +44,7 @@ impl ListingService {
     pub async fn update_listing(&self, id: &ListingId, updates: UpdateListingRequest) -> Result<Listing> {
         let mut response = self.client
             .query("UPDATE listing SET * = $updates WHERE listing_id = $id RETURN AFTER")
-            .bind(("id", id))
+            .bind(("id", id.to_string()))
             .bind(("updates", updates))
             .await?;
             
@@ -56,7 +56,7 @@ impl ListingService {
     pub async fn update_status(&self, id: &ListingId, status: ListingStatus) -> Result<()> {
         let mut response = self.client
             .query("UPDATE listing SET status = $status WHERE listing_id = $id")
-            .bind(("id", id))
+            .bind(("id", id.to_string()))
             .bind(("status", status))
             .await?;
             

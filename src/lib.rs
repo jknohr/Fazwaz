@@ -29,6 +29,20 @@ use once_cell::sync::Lazy;
 
 // AI & ML
 pub use async_openai;
+pub use rayon::prelude::*;
+pub use imageproc::{
+    gradients::sobel_gradients,
+    geometric_transformations::{Projection, warp, Interpolation},
+    hough,
+};
+pub use imageproc::filter::{gaussian_blur_f32, unsharp_mask};
+pub use imageproc::histogram::{calculate_mean, calculate_std_dev};
+pub use imageproc::color::{Rgb, ImageEnhancement};
+pub use imageproc::edges::{detect_edges, EdgeDetectionMethod};
+pub use imageproc::geometry::{rotate, scale, translate};
+pub use imageproc::morphology::{dilate, erode};
+pub use imageproc::segmentation::{threshold, threshold_otsu};
+pub use imageproc::transform::{resize, rotate_180, rotate_90, rotate_270};
 
 // Utilities
 pub use uuid7::{self, Uuid};

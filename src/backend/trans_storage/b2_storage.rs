@@ -156,7 +156,7 @@ impl B2Storage {
             .key(file_id)
             .send()
             .await
-            .map_err(|e| AppError::Storage(StorageError::BucketOperation(e.to_string())))?;
+            .map_err(|e| StorageError::BucketOperation(e.to_string()))?;
             
         timer.observe_duration();
         self.metrics.bucket_operations.with_label_values(&["delete"]).inc();
@@ -176,7 +176,7 @@ impl B2Storage {
             .key(file_id)
             .send()
             .await
-            .map_err(|e| AppError::Storage(StorageError::DownloadFailed(e.to_string())))?;
+            .map_err(|e| StorageError::DownloadFailed(e.to_string()))?;
             
         let data = response.body.collect().await?.into_bytes();
         timer.observe_duration();
@@ -197,7 +197,7 @@ impl B2Storage {
             .key(file_id)
             .send()
             .await
-            .map_err(|e| AppError::Storage(StorageError::FileNotFound(e.to_string())))?;
+            .map_err(|e| StorageError::FileNotFound(e.to_string()))?;
             
         Ok(B2FileInfo {
             file_id: head.e_tag.unwrap_or_default(),
@@ -223,7 +223,7 @@ impl B2Storage {
             .prefix(prefix.unwrap_or(""))
             .send()
             .await
-            .map_err(|e| AppError::Storage(StorageError::BucketOperation(e.to_string())))?;
+            .map_err(|e| StorageError::BucketOperation(e.to_string()))?;
             
         let files = list.contents.unwrap_or_default();
         
@@ -252,6 +252,48 @@ impl B2Storage {
                 }
             })
             .collect())
+    }
+
+    pub async fn upload_file(&self, path: &str, data: &[u8], content_type: &str) -> Result<String> {
+        let timer = self.metrics.upload_duration.start_timer();
+        
+        let bucket_name = self.config.get_bucket_name();
+        let data_len = data.len();
+
+        let response = self.client
+            .put_object()
+            .bucket(&bucket_name)
+            .key(path)
+            .body(ByteStream::from(data.to_vec()))
+            .content_type(content_type)
+            .send()
+            .await
+            .map_err(|e| StorageError::UploadFailed(e.to_string()))?;
+
+        timer.observe_duration();
+        self.metrics.successful_uploads.inc();
+        self.metrics.bytes_transferred.with_label_values(&["upload"]).inc_by(data_len as u64);
+
+        Ok(response.e_tag().unwrap_or_default().to_string())
+    }
+
+    pub async fn download_file(&self, path: &str) -> Result<Vec<u8>> {
+        let timer = self.metrics.download_duration.start_timer();
+        let bucket_name = self.config.get_bucket_name();
+        
+        let response = self.client
+            .get_object()
+            .bucket(&bucket_name)
+            .key(path)
+            .send()
+            .await
+            .map_err(|e| StorageError::DownloadFailed(e.to_string()))?;
+            
+        let data = response.body.collect().await?.into_bytes();
+        timer.observe_duration();
+        self.metrics.bytes_transferred.with_label_values(&["download"]).inc_by(data.len() as u64);
+        
+        Ok(data.to_vec())
     }
 }
 
